@@ -1,10 +1,12 @@
 {
   "172655374736818176": {
-    "balance": 63,
-    "totalEarned": 73,
+    "balance": 2428,
+    "totalEarned": 2838,
     "referrals": 1,
     "lastEarn": 1758904903848,
-    "joinedAt": 1758904903843
+    "joinedAt": 1758904903843,
+    "lastDaily": 1758906382629,
+    "lastWeekly": 1758906393399
   },
   "261330903731666945": {
     "balance": 10,
@@ -12,5 +14,12 @@
     "referrals": 0,
     "lastEarn": null,
     "joinedAt": 1758904929352
+  },
+  "865579950857388063": {
+    "balance": 0,
+    "totalEarned": 0,
+    "referrals": 0,
+    "lastEarn": null,
+    "joinedAt": 1758905564865
   }
 }
