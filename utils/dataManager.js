@@ -13,6 +13,7 @@
 const fs = require('fs-extra');
 const path = require('path');
 const logger = require('./logger');
+const { v4: uuidv4 } = require('uuid');
 
 class DataManager {
     constructor() {
@@ -23,7 +24,9 @@ class DataManager {
             referrals: path.join(this.dataDir, 'referrals.json'),
             invites: path.join(this.dataDir, 'invites.json'),
             guilds: path.join(this.dataDir, 'guilds.json'),
-            claimed: path.join(this.dataDir, 'claimed.json')
+            claimed: path.join(this.dataDir, 'claimed.json'),
+            items: path.join(this.dataDir, 'items.json'),
+            listings: path.join(this.dataDir, 'listings.json')
         };
         
         // In-memory data storage for fast access
@@ -32,7 +35,9 @@ class DataManager {
             referrals: new Map(),
             invites: new Map(),
             guilds: new Map(),
-            claimed: new Set()
+            claimed: new Set(),
+            items: new Map(),
+            listings: new Map()
         };
         
         // Auto-save interval (every 5 minutes)
@@ -49,7 +54,7 @@ class DataManager {
             // Ensure data directory exists
             await fs.ensureDir(this.dataDir);
             
-            // Load existing data
+            // Load existing data including items catalog
             await this.loadAll();
             
             // Start auto-save timer
@@ -75,12 +80,18 @@ class DataManager {
                     if (dataType === 'claimed') {
                         // Convert array to Set for claimed referrals
                         this.data.claimed = new Set(jsonData);
+                    } else if (dataType === 'items') {
+                        // Items catalog: convert object to Map
+                        this.data.items = new Map(Object.entries(jsonData));
+                    } else if (dataType === 'listings') {
+                        // Listings: convert object to Map
+                        this.data.listings = new Map(Object.entries(jsonData));
                     } else {
                         // Convert object to Map
                         this.data[dataType] = new Map(Object.entries(jsonData));
                     }
                     
-                    logger.debug(`📂 Loaded ${dataType} data: ${this.data[dataType].size || this.data[dataType].size} entries`);
+                    logger.debug(`📂 Loaded ${dataType} data: ${this.data[dataType]?.size || this.data.claimed.size} entries`);
                 } else {
                     logger.debug(`📂 No existing ${dataType} data file found, starting fresh`);
                 }
@@ -163,19 +174,22 @@ class DataManager {
      */
     getUser(userId) {
         if (!this.data.users.has(userId)) {
-            // Create new user with default values
+            // Create new user with default values and inventory
             const newUser = {
                 balance: 0,
                 totalEarned: 0,
                 referrals: 0,
                 lastEarn: null,
-                joinedAt: Date.now()
+                joinedAt: Date.now(),
+                inventory: {} // Initialize empty inventory
             };
             this.data.users.set(userId, newUser);
             logger.debug(`👤 Created new user record: ${userId}`);
         }
         
-        return this.data.users.get(userId);
+        const user = this.data.users.get(userId);
+        if (!user.inventory) user.inventory = {}; // Ensure inventory for legacy users
+        return user;
     }
 
     /**
@@ -245,6 +259,158 @@ class DataManager {
         logger.logTransaction('remove_balance', userId, amount, `New balance: ${user.balance - amount}`);
         
         return true;
+    }
+
+    /**
+     * Check if item key is valid in the item catalog
+     * @param {string} item - Item key
+     * @returns {boolean} True if item exists in catalog
+     */
+    isValidItem(item) {
+        return this.data.items.has(item);
+    }
+
+    /**
+     * Get item information from catalog
+     * @param {string} item - Item key
+     * @returns {Object} Item data object or undefined if not found
+     */
+    getItemInfo(item) {
+        return this.data.items.get(item);
+    }
+
+    /**
+     * Get quantity of an item in user's inventory
+     * @param {string} userId - Discord user ID
+     * @param {string} item - Item name
+     * @returns {number} Quantity owned, or 0 if none or invalid item
+     */
+    getUserItemQuantity(userId, item) {
+        if (!this.isValidItem(item)) return 0;
+        const user = this.getUser(userId);
+        if (!user.inventory) return 0;
+        return user.inventory[item] || 0;
+    }
+
+    /**
+     * Add item(s) to user's inventory
+     * @param {string} userId - Discord user ID
+     * @param {string} item - Item name
+     * @param {number} quantity - Quantity to add
+     * @returns {boolean} True if successful
+     */
+    addItemToUser(userId, item, quantity) {
+        if (quantity <= 0 || !this.isValidItem(item)) return false;
+        const user = this.getUser(userId);
+        if (!user.inventory) user.inventory = {};
+        if (!user.inventory[item]) user.inventory[item] = 0;
+        user.inventory[item] += quantity;
+        this.updateUser(userId, user);
+        logger.debug(`🛒 Added ${quantity}x ${item} to user ${userId}`);
+        return true;
+    }
+
+    /**
+     * Remove item(s) from user's inventory
+     * @param {string} userId - Discord user ID
+     * @param {string} item - Item name
+     * @param {number} quantity - Quantity to remove
+     * @returns {boolean} True if successful, false if insufficient quantity or invalid item
+     */
+    removeItemFromUser(userId, item, quantity) {
+        if (quantity <= 0 || !this.isValidItem(item)) return false;
+        const user = this.getUser(userId);
+        if (!user.inventory || !user.inventory[item]) return false;
+        if (user.inventory[item] < quantity) return false; // not enough
+        user.inventory[item] -= quantity;
+        if (user.inventory[item] === 0) delete user.inventory[item];
+        this.updateUser(userId, user);
+        logger.debug(`🛒 Removed ${quantity}x ${item} from user ${userId}`);
+        return true;
+    }
+
+    /**
+     * Create a new marketplace listing
+     * @param {string} sellerId - Seller's Discord user ID
+     * @param {string} item - Item key from catalog
+     * @param {number} quantity - Quantity to list (must be positive)
+     * @param {number} price - Price per unit or total
+     * @returns {Object|null} The created listing object, or null if invalid request
+     */
+    createListing(sellerId, item, quantity, price) {
+        if (!sellerId || !this.isValidItem(item) || quantity <= 0 || price <= 0) return null;
+
+        // Verify seller has enough items to list
+        const owned = this.getUserItemQuantity(sellerId, item);
+        if (owned < quantity) return null;
+
+        // Remove items from seller as escrow
+        const removed = this.removeItemFromUser(sellerId, item, quantity);
+        if (!removed) return null;
+
+        const listingId = uuidv4();
+        const listing = {
+            id: listingId,
+            sellerId,
+            item,
+            quantity,
+            price,
+            timestamp: Date.now()
+        };
+
+        this.data.listings.set(listingId, listing);
+        logger.debug(`🛒 Created listing ${listingId} by user ${sellerId}`);
+
+        return listing;
+    }
+
+    /**
+     * Remove a marketplace listing by ID
+     * @param {string} listingId - Listing unique ID
+     * @returns {boolean} True on success, false if not found
+     */
+    removeListing(listingId) {
+        if (!this.data.listings.has(listingId)) return false;
+        this.data.listings.delete(listingId);
+        logger.debug(`🛒 Removed listing ${listingId}`);
+        return true;
+    }
+
+    /**
+     * Get listing by ID
+     * @param {string} listingId
+     * @returns {Object|null} Listing object or null if not found
+     */
+    getListing(listingId) {
+        return this.data.listings.get(listingId) || null;
+    }
+
+    /**
+     * Get all listings paginated and optionally filtered by item or seller
+     * @param {number} page - 1-based page number
+     * @param {number} perPage - Number of items per page
+     * @param {string|null} filterItem - Optional filter by item key
+     * @param {string|null} filterSeller - Optional filter by sellerId
+     * @returns {Object} { listings: Array, total: number, totalPages: number }
+     */
+    getListingsPaged(page = 1, perPage = 10, filterItem = null, filterSeller = null) {
+        let listingsArray = Array.from(this.data.listings.values());
+
+        if (filterItem) {
+            listingsArray = listingsArray.filter(l => l.item === filterItem);
+        }
+        if (filterSeller) {
+            listingsArray = listingsArray.filter(l => l.sellerId === filterSeller);
+        }
+
+        listingsArray.sort((a, b) => b.timestamp - a.timestamp); // Newest first
+
+        const total = listingsArray.length;
+        const totalPages = Math.ceil(total / perPage);
+        const start = (page - 1) * perPage;
+        const paged = listingsArray.slice(start, start + perPage);
+
+        return { listings: paged, total, totalPages };
     }
 
     /**
@@ -456,4 +622,5 @@ class DataManager {
 
 // Create and export singleton instance
 const dataManager = new DataManager();
+
 module.exports = dataManager;

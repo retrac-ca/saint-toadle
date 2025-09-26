@@ -1,0 +1,32 @@
+{
+  "apple": {
+    "name": "Apple",
+    "description": "A juicy red apple. Restores a small amount of health.",
+    "emoji": "🍎",
+    "rarity": "common"
+  },
+  "sword": {
+    "name": "Sword",
+    "description": "A sharp steel sword. Useful for combat.",
+    "emoji": "⚔️",
+    "rarity": "rare"
+  },
+  "shield": {
+    "name": "Shield",
+    "description": "A sturdy shield to block attacks.",
+    "emoji": "🛡️",
+    "rarity": "uncommon"
+  },
+  "diamond": {
+    "name": "Diamond",
+    "description": "A precious diamond. Very valuable.",
+    "emoji": "💎",
+    "rarity": "epic"
+  },
+  "potion": {
+    "name": "Potion",
+    "description": "A magic potion. Heals all wounds instantly.",
+    "emoji": "🧪",
+    "rarity": "rare"
+  }
+}
