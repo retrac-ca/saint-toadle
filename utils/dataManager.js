@@ -1,44 +1,41 @@
 /**
- * Data Manager - Persistent Data Storage System
+ * Data Manager - Modular Persistent Data Storage System
  * 
- * Handles all data persistence for the bot including:
- * - User balances and economy data
- * - Referral tracking and statistics
- * - Server-specific configurations
- * - Automatic data saving and backup
- * 
- * Uses JSON files for simplicity but can be extended to use databases
+ * Orchestrates multiple specialized managers for different data domains:
+ * - UserManager: handles user balances, inventories
+ * - BankManager: handles deposit/withdraw/interest operations
+ * - MarketplaceManager: handles item listings and purchases
+ * - ReferralManager: handles invite tracking and referral claims
+ * - StatisticsManager: handles analytics and reporting
+ * - DataStorage: handles all file I/O operations
  */
 
-const fs = require('fs-extra');
-const path = require('path');
 const logger = require('./logger');
-const { v4: uuidv4 } = require('uuid');
+
+// Import storage handler
+const DataStorage = require('./storage/dataStorage');
+
+// Import specialized managers
+const UserManager = require('./managers/userManager');
+const BankManager = require('./managers/bankManager');
+const MarketplaceManager = require('./managers/marketplaceManager');
+const ReferralManager = require('./managers/referralManager');
+const StatisticsManager = require('./managers/statisticsManager');
 
 class DataManager {
     constructor() {
-        // Define data directory and file paths
-        this.dataDir = path.join(__dirname, '..', 'data');
-        this.files = {
-            users: path.join(this.dataDir, 'users.json'),
-            referrals: path.join(this.dataDir, 'referrals.json'),
-            invites: path.join(this.dataDir, 'invites.json'),
-            guilds: path.join(this.dataDir, 'guilds.json'),
-            claimed: path.join(this.dataDir, 'claimed.json'),
-            items: path.join(this.dataDir, 'items.json'),
-            listings: path.join(this.dataDir, 'listings.json')
-        };
+        // Initialize storage handler
+        this.storage = new DataStorage();
         
-        // In-memory data storage for fast access
-        this.data = {
-            users: new Map(),
-            referrals: new Map(),
-            invites: new Map(),
-            guilds: new Map(),
-            claimed: new Set(),
-            items: new Map(),
-            listings: new Map()
-        };
+        // Data structures will be loaded from storage
+        this.data = {};
+        
+        // Specialized managers (initialized after data loading)
+        this.userManager = null;
+        this.bankManager = null;
+        this.marketplaceManager = null;
+        this.referralManager = null;
+        this.statisticsManager = null;
         
         // Auto-save interval (every 5 minutes)
         this.autoSaveInterval = 5 * 60 * 1000;
@@ -46,21 +43,23 @@ class DataManager {
     }
 
     /**
-     * Initialize the data manager
-     * Creates data directory and loads existing data
+     * Initialize the data manager and all sub-managers
      */
     async initialize() {
         try {
-            // Ensure data directory exists
-            await fs.ensureDir(this.dataDir);
+            // Initialize storage
+            await this.storage.initialize();
             
-            // Load existing data including items catalog
-            await this.loadAll();
+            // Load all data from files
+            this.data = await this.storage.loadAll();
+            
+            // Initialize specialized managers with loaded data
+            this.initializeManagers();
             
             // Start auto-save timer
             this.startAutoSave();
             
-            logger.info('💾 Data Manager initialized successfully');
+            logger.info('💾 Modular Data Manager initialized successfully');
             
         } catch (error) {
             logger.logError('Data Manager initialization', error);
@@ -69,69 +68,44 @@ class DataManager {
     }
 
     /**
-     * Load all data from JSON files into memory
+     * Initialize all specialized managers with loaded data
      */
-    async loadAll() {
-        for (const [dataType, filePath] of Object.entries(this.files)) {
-            try {
-                if (await fs.pathExists(filePath)) {
-                    const jsonData = await fs.readJson(filePath);
-                    
-                    if (dataType === 'claimed') {
-                        // Convert array to Set for claimed referrals
-                        this.data.claimed = new Set(jsonData);
-                    } else if (dataType === 'items') {
-                        // Items catalog: convert object to Map
-                        this.data.items = new Map(Object.entries(jsonData));
-                    } else if (dataType === 'listings') {
-                        // Listings: convert object to Map
-                        this.data.listings = new Map(Object.entries(jsonData));
-                    } else {
-                        // Convert object to Map
-                        this.data[dataType] = new Map(Object.entries(jsonData));
-                    }
-                    
-                    logger.debug(`📂 Loaded ${dataType} data: ${this.data[dataType]?.size || this.data.claimed.size} entries`);
-                } else {
-                    logger.debug(`📂 No existing ${dataType} data file found, starting fresh`);
-                }
-            } catch (error) {
-                logger.logError(`Loading ${dataType} data`, error);
-            }
-        }
+    initializeManagers() {
+        // User manager handles user data, balances, and inventory
+        this.userManager = new UserManager(this.data.users, this.data.items);
+        
+        // Bank manager handles banking operations
+        this.bankManager = new BankManager(this.data.users);
+        
+        // Marketplace manager handles item listings and purchases
+        this.marketplaceManager = new MarketplaceManager(this.data.listings, this.userManager);
+        
+        // Referral manager handles invite tracking and claims
+        this.referralManager = new ReferralManager(this.data.invites, this.data.claimed, this.userManager);
+        
+        // Statistics manager handles analytics and reporting
+        this.statisticsManager = new StatisticsManager(
+            this.data.users, 
+            this.data.invites, 
+            this.data.claimed, 
+            this.data.listings
+        );
+        
+        logger.debug('🔧 All specialized managers initialized');
     }
 
     /**
-     * Save all data to JSON files
+     * Save all data using the storage handler
      */
     async saveAll() {
-        const savePromises = [];
-        
-        for (const [dataType, filePath] of Object.entries(this.files)) {
-            try {
-                let dataToSave;
-                
-                if (dataType === 'claimed') {
-                    // Convert Set to Array for JSON serialization
-                    dataToSave = Array.from(this.data.claimed);
-                } else {
-                    // Convert Map to Object for JSON serialization
-                    dataToSave = Object.fromEntries(this.data[dataType]);
-                }
-                
-                savePromises.push(
-                    fs.writeJson(filePath, dataToSave, { spaces: 2 })
-                        .then(() => logger.debug(`💾 Saved ${dataType} data`))
-                        .catch(error => logger.logError(`Saving ${dataType} data`, error))
-                );
-                
-            } catch (error) {
-                logger.logError(`Preparing ${dataType} data for save`, error);
-            }
+        try {
+            const results = await this.storage.saveAll(this.data);
+            logger.debug('💾 All data saved through storage handler');
+            return results;
+        } catch (error) {
+            logger.logError('Save all data', error);
+            throw error;
         }
-        
-        await Promise.all(savePromises);
-        logger.debug('💾 All data saved successfully');
     }
 
     /**
@@ -165,462 +139,251 @@ class DataManager {
         }
     }
 
-    // ===== USER DATA METHODS =====
+    // ===== USER METHODS (delegated to UserManager) =====
 
-    /**
-     * Get user data by ID
-     * @param {string} userId - Discord user ID
-     * @returns {Object} User data object
-     */
     getUser(userId) {
-        if (!this.data.users.has(userId)) {
-            // Create new user with default values and inventory
-            const newUser = {
-                balance: 0,
-                totalEarned: 0,
-                referrals: 0,
-                lastEarn: null,
-                joinedAt: Date.now(),
-                inventory: {} // Initialize empty inventory
-            };
-            this.data.users.set(userId, newUser);
-            logger.debug(`👤 Created new user record: ${userId}`);
-        }
-        
-        const user = this.data.users.get(userId);
-        if (!user.inventory) user.inventory = {}; // Ensure inventory for legacy users
-        return user;
+        return this.userManager.getUser(userId);
     }
 
-    /**
-     * Update user data
-     * @param {string} userId - Discord user ID
-     * @param {Object} updates - Object containing fields to update
-     */
     updateUser(userId, updates) {
-        const user = this.getUser(userId);
-        Object.assign(user, updates);
-        this.data.users.set(userId, user);
-        logger.debug(`👤 Updated user ${userId}:`, updates);
+        return this.userManager.updateUser(userId, updates);
     }
 
-    /**
-     * Get user balance
-     * @param {string} userId - Discord user ID
-     * @returns {number} User's current balance
-     */
     getUserBalance(userId) {
-        return this.getUser(userId).balance;
+        return this.userManager.getUserBalance(userId);
     }
 
-    /**
-     * Set user balance
-     * @param {string} userId - Discord user ID
-     * @param {number} amount - New balance amount
-     */
     setUserBalance(userId, amount) {
-        this.updateUser(userId, { balance: Math.max(0, amount) });
-        logger.logTransaction('set_balance', userId, amount);
+        return this.userManager.setUserBalance(userId, amount);
     }
 
-    /**
-     * Add to user balance
-     * @param {string} userId - Discord user ID
-     * @param {number} amount - Amount to add
-     */
     addToUserBalance(userId, amount) {
-        const user = this.getUser(userId);
-        const newBalance = user.balance + amount;
-        const newTotalEarned = user.totalEarned + amount;
-        
-        this.updateUser(userId, { 
-            balance: newBalance,
-            totalEarned: newTotalEarned
-        });
-        
-        logger.logTransaction('add_balance', userId, amount, `New balance: ${newBalance}`);
+        return this.userManager.addToUserBalance(userId, amount);
+    }
+
+    removeFromUserBalance(userId, amount) {
+        return this.userManager.removeFromUserBalance(userId, amount);
+    }
+
+    isValidItem(item) {
+        return this.userManager.isValidItem(item);
+    }
+
+    getItemInfo(item) {
+        return this.userManager.getItemInfo(item);
+    }
+
+    getUserItemQuantity(userId, item) {
+        return this.userManager.getUserItemQuantity(userId, item);
+    }
+
+    addItemToUser(userId, item, quantity) {
+        return this.userManager.addItemToUser(userId, item, quantity);
+    }
+
+    removeItemFromUser(userId, item, quantity) {
+        return this.userManager.removeItemFromUser(userId, item, quantity);
+    }
+
+    getLeaderboard(limit = 10) {
+        return this.userManager.getLeaderboard(limit);
+    }
+
+    // ===== BANK METHODS (delegated to BankManager) =====
+
+    getBankBalance(userId) {
+        return this.bankManager.getBankBalance(userId);
+    }
+
+    depositToBank(userId, amount) {
+        return this.bankManager.deposit(userId, amount);
+    }
+
+    withdrawFromBank(userId, amount) {
+        return this.bankManager.withdraw(userId, amount);
+    }
+
+    applyBankInterest(interestRate = 0.01) {
+        return this.bankManager.applyInterest(interestRate);
+    }
+
+    // ===== MARKETPLACE METHODS (delegated to MarketplaceManager) =====
+
+    createListing(sellerId, item, quantity, price) {
+        return this.marketplaceManager.createListing(sellerId, item, quantity, price);
+    }
+
+    removeListing(listingId) {
+        return this.marketplaceManager.removeListing(listingId);
+    }
+
+    getListing(listingId) {
+        return this.marketplaceManager.getListing(listingId);
+    }
+
+    getListingsPaged(page = 1, perPage = 10, filterItem = null, filterSeller = null) {
+        return this.marketplaceManager.getListingsPaged(page, perPage, filterItem, filterSeller);
+    }
+
+    purchaseMarketplaceItem(buyerId, listingId, quantity) {
+        return this.marketplaceManager.purchaseItem(buyerId, listingId, quantity);
+    }
+
+    // ===== REFERRAL METHODS (delegated to ReferralManager) =====
+
+    registerInvite(inviteCode, inviterUserId) {
+        return this.referralManager.registerInvite(inviteCode, inviterUserId);
+    }
+
+    getInviteOwner(inviteCode) {
+        return this.referralManager.getInviteOwner(inviteCode);
+    }
+
+    isInviteRegistered(inviteCode) {
+        return this.referralManager.isInviteRegistered(inviteCode);
+    }
+
+    getUserInvites(userId) {
+        return this.referralManager.getUserInvites(userId);
+    }
+
+    hasClaimedReferral(userId) {
+        return this.referralManager.hasClaimedReferral(userId);
+    }
+
+    markReferralClaimed(userId) {
+        return this.referralManager.markReferralClaimed(userId);
+    }
+
+    processReferralClaim(inviteCode, claimerUserId) {
+        return this.referralManager.processReferralClaim(inviteCode, claimerUserId);
+    }
+
+    // ===== STATISTICS METHODS (delegated to StatisticsManager) =====
+
+    getStatistics() {
+        return this.statisticsManager.getStatistics();
+    }
+
+    getUserStats(userId) {
+        return this.statisticsManager.getUserStats(userId, this.userManager, this.referralManager);
+    }
+
+    getTopUsers(metric = 'balance', limit = 10) {
+        return this.statisticsManager.getTopUsers(metric, limit);
+    }
+
+    getMarketplaceItemStats() {
+        return this.statisticsManager.getMarketplaceItemStats();
+    }
+
+    // ===== STORAGE MANAGEMENT METHODS =====
+
+    /**
+     * Create backup of all data files
+     */
+    async createBackup() {
+        return await this.storage.createAllBackups();
     }
 
     /**
-     * Remove from user balance
-     * @param {string} userId - Discord user ID
-     * @param {number} amount - Amount to remove
-     * @returns {boolean} True if successful, false if insufficient funds
+     * Clean old backup files
      */
-    removeFromUserBalance(userId, amount) {
-        const user = this.getUser(userId);
-        
-        if (user.balance < amount) {
-            logger.debug(`❌ Insufficient funds for user ${userId}: ${user.balance} < ${amount}`);
+    async cleanOldBackups(maxAge = 30, maxCount = 10) {
+        return await this.storage.cleanOldBackups(maxAge, maxCount);
+    }
+
+    /**
+     * Get storage statistics
+     */
+    async getStorageStats() {
+        return await this.storage.getStorageStats();
+    }
+
+    /**
+     * Validate all data files
+     */
+    async validateDataFiles() {
+        return await this.storage.validateAllDataFiles();
+    }
+
+    /**
+     * Force save specific data type
+     */
+    async saveDataType(dataType) {
+        if (this.data[dataType]) {
+            return await this.storage.saveData(dataType, this.data[dataType]);
+        }
+        return false;
+    }
+
+    /**
+     * Reload specific data type from disk
+     */
+    async reloadDataType(dataType) {
+        try {
+            this.data[dataType] = await this.storage.loadData(dataType);
+            this.initializeManagers(); // Reinitialize managers with new data
+            logger.debug(`🔄 Reloaded ${dataType} data`);
+            return true;
+        } catch (error) {
+            logger.logError(`Reloading ${dataType} data`, error);
             return false;
         }
-        
-        this.updateUser(userId, { balance: user.balance - amount });
-        logger.logTransaction('remove_balance', userId, amount, `New balance: ${user.balance - amount}`);
-        
-        return true;
     }
 
-    /**
-     * Check if item key is valid in the item catalog
-     * @param {string} item - Item key
-     * @returns {boolean} True if item exists in catalog
-     */
-    isValidItem(item) {
-        return this.data.items.has(item);
-    }
+    // ===== UTILITY METHODS =====
 
     /**
-     * Get item information from catalog
-     * @param {string} item - Item key
-     * @returns {Object} Item data object or undefined if not found
+     * Get memory usage statistics
      */
-    getItemInfo(item) {
-        return this.data.items.get(item);
-    }
-
-    /**
-     * Get quantity of an item in user's inventory
-     * @param {string} userId - Discord user ID
-     * @param {string} item - Item name
-     * @returns {number} Quantity owned, or 0 if none or invalid item
-     */
-    getUserItemQuantity(userId, item) {
-        if (!this.isValidItem(item)) return 0;
-        const user = this.getUser(userId);
-        if (!user.inventory) return 0;
-        return user.inventory[item] || 0;
-    }
-
-    /**
-     * Add item(s) to user's inventory
-     * @param {string} userId - Discord user ID
-     * @param {string} item - Item name
-     * @param {number} quantity - Quantity to add
-     * @returns {boolean} True if successful
-     */
-    addItemToUser(userId, item, quantity) {
-        if (quantity <= 0 || !this.isValidItem(item)) return false;
-        const user = this.getUser(userId);
-        if (!user.inventory) user.inventory = {};
-        if (!user.inventory[item]) user.inventory[item] = 0;
-        user.inventory[item] += quantity;
-        this.updateUser(userId, user);
-        logger.debug(`🛒 Added ${quantity}x ${item} to user ${userId}`);
-        return true;
-    }
-
-    /**
-     * Remove item(s) from user's inventory
-     * @param {string} userId - Discord user ID
-     * @param {string} item - Item name
-     * @param {number} quantity - Quantity to remove
-     * @returns {boolean} True if successful, false if insufficient quantity or invalid item
-     */
-    removeItemFromUser(userId, item, quantity) {
-        if (quantity <= 0 || !this.isValidItem(item)) return false;
-        const user = this.getUser(userId);
-        if (!user.inventory || !user.inventory[item]) return false;
-        if (user.inventory[item] < quantity) return false; // not enough
-        user.inventory[item] -= quantity;
-        if (user.inventory[item] === 0) delete user.inventory[item];
-        this.updateUser(userId, user);
-        logger.debug(`🛒 Removed ${quantity}x ${item} from user ${userId}`);
-        return true;
-    }
-
-    /**
-     * Create a new marketplace listing
-     * @param {string} sellerId - Seller's Discord user ID
-     * @param {string} item - Item key from catalog
-     * @param {number} quantity - Quantity to list (must be positive)
-     * @param {number} price - Price per unit or total
-     * @returns {Object|null} The created listing object, or null if invalid request
-     */
-    createListing(sellerId, item, quantity, price) {
-        if (!sellerId || !this.isValidItem(item) || quantity <= 0 || price <= 0) return null;
-
-        // Verify seller has enough items to list
-        const owned = this.getUserItemQuantity(sellerId, item);
-        if (owned < quantity) return null;
-
-        // Remove items from seller as escrow
-        const removed = this.removeItemFromUser(sellerId, item, quantity);
-        if (!removed) return null;
-
-        const listingId = uuidv4();
-        const listing = {
-            id: listingId,
-            sellerId,
-            item,
-            quantity,
-            price,
-            timestamp: Date.now()
+    getMemoryStats() {
+        return {
+            users: this.data.users?.size || 0,
+            items: this.data.items?.size || 0,
+            listings: this.data.listings?.size || 0,
+            invites: this.data.invites?.size || 0,
+            claimed: this.data.claimed?.size || 0,
+            guilds: this.data.guilds?.size || 0
         };
-
-        this.data.listings.set(listingId, listing);
-        logger.debug(`🛒 Created listing ${listingId} by user ${sellerId}`);
-
-        return listing;
     }
 
     /**
-     * Remove a marketplace listing by ID
-     * @param {string} listingId - Listing unique ID
-     * @returns {boolean} True on success, false if not found
+     * Check if data manager is properly initialized
      */
-    removeListing(listingId) {
-        if (!this.data.listings.has(listingId)) return false;
-        this.data.listings.delete(listingId);
-        logger.debug(`🛒 Removed listing ${listingId}`);
-        return true;
+    isInitialized() {
+        return !!(this.userManager && 
+                 this.bankManager && 
+                 this.marketplaceManager && 
+                 this.referralManager && 
+                 this.statisticsManager);
     }
 
     /**
-     * Get listing by ID
-     * @param {string} listingId
-     * @returns {Object|null} Listing object or null if not found
+     * Graceful shutdown - save data and cleanup
      */
-    getListing(listingId) {
-        return this.data.listings.get(listingId) || null;
-    }
-
-    /**
-     * Get all listings paginated and optionally filtered by item or seller
-     * @param {number} page - 1-based page number
-     * @param {number} perPage - Number of items per page
-     * @param {string|null} filterItem - Optional filter by item key
-     * @param {string|null} filterSeller - Optional filter by sellerId
-     * @returns {Object} { listings: Array, total: number, totalPages: number }
-     */
-    getListingsPaged(page = 1, perPage = 10, filterItem = null, filterSeller = null) {
-        let listingsArray = Array.from(this.data.listings.values());
-
-        if (filterItem) {
-            listingsArray = listingsArray.filter(l => l.item === filterItem);
-        }
-        if (filterSeller) {
-            listingsArray = listingsArray.filter(l => l.sellerId === filterSeller);
-        }
-
-        listingsArray.sort((a, b) => b.timestamp - a.timestamp); // Newest first
-
-        const total = listingsArray.length;
-        const totalPages = Math.ceil(total / perPage);
-        const start = (page - 1) * perPage;
-        const paged = listingsArray.slice(start, start + perPage);
-
-        return { listings: paged, total, totalPages };
-    }
-
-    /**
-     * Get leaderboard data
-     * @param {number} limit - Number of top users to return
-     * @returns {Array} Array of user data sorted by balance
-     */
-    getLeaderboard(limit = 10) {
-        const users = Array.from(this.data.users.entries())
-            .map(([userId, userData]) => ({ userId, ...userData }))
-            .sort((a, b) => b.balance - a.balance)
-            .slice(0, limit);
+    async shutdown() {
+        try {
+            logger.info('🔄 Shutting down Data Manager...');
             
-        return users;
-    }
-
-    // ===== INVITE TRACKING METHODS =====
-
-    /**
-     * Register an invite code with an inviter
-     * @param {string} inviteCode - Discord invite code
-     * @param {string} inviterUserId - User ID of the inviter
-     */
-    registerInvite(inviteCode, inviterUserId) {
-        this.data.invites.set(inviteCode, {
-            inviterId: inviterUserId,
-            registeredAt: Date.now(),
-            uses: 0
-        });
-        
-        logger.logReferral('register', inviterUserId, null, inviteCode, 'Invite registered');
-    }
-
-    /**
-     * Get invite owner by code
-     * @param {string} inviteCode - Discord invite code
-     * @returns {string|null} User ID of the inviter or null if not found
-     */
-    getInviteOwner(inviteCode) {
-        const invite = this.data.invites.get(inviteCode);
-        return invite ? invite.inviterId : null;
-    }
-
-    /**
-     * Check if invite code is registered
-     * @param {string} inviteCode - Discord invite code
-     * @returns {boolean} True if registered, false otherwise
-     */
-    isInviteRegistered(inviteCode) {
-        return this.data.invites.has(inviteCode);
-    }
-
-    /**
-     * Get all registered invites for a user
-     * @param {string} userId - Discord user ID
-     * @returns {Array} Array of invite codes registered by the user
-     */
-    getUserInvites(userId) {
-        const userInvites = [];
-        
-        for (const [inviteCode, inviteData] of this.data.invites.entries()) {
-            if (inviteData.inviterId === userId) {
-                userInvites.push({
-                    code: inviteCode,
-                    ...inviteData
-                });
-            }
+            // Stop auto-save
+            this.stopAutoSave();
+            
+            // Save all data one final time
+            await this.saveAll();
+            
+            // Create a final backup
+            await this.createBackup();
+            
+            logger.info('✅ Data Manager shutdown complete');
+            
+        } catch (error) {
+            logger.logError('Data Manager shutdown', error);
+            throw error;
         }
-        
-        return userInvites;
-    }
-
-    // ===== REFERRAL CLAIM TRACKING =====
-
-    /**
-     * Check if user has already claimed a referral bonus
-     * @param {string} userId - Discord user ID
-     * @returns {boolean} True if already claimed, false otherwise
-     */
-    hasClaimedReferral(userId) {
-        return this.data.claimed.has(userId);
-    }
-
-    /**
-     * Mark user as having claimed referral bonus
-     * @param {string} userId - Discord user ID
-     */
-    markReferralClaimed(userId) {
-        this.data.claimed.add(userId);
-        logger.debug(`✅ Marked referral as claimed for user ${userId}`);
-    }
-
-    /**
-     * Process referral claim
-     * @param {string} inviteCode - Invite code used
-     * @param {string} claimerUserId - User ID of the person claiming
-     * @returns {Object} Result object with success status and details
-     */
-    processReferralClaim(inviteCode, claimerUserId) {
-        // Check if user has already claimed
-        if (this.hasClaimedReferral(claimerUserId)) {
-            return {
-                success: false,
-                reason: 'already_claimed',
-                message: 'You have already claimed a referral bonus!'
-            };
-        }
-
-        // Check if invite code is registered
-        const inviterId = this.getInviteOwner(inviteCode);
-        if (!inviterId) {
-            return {
-                success: false,
-                reason: 'invalid_code',
-                message: 'Invalid invite code or code not registered!'
-            };
-        }
-
-        // Check if user is trying to refer themselves
-        if (inviterId === claimerUserId) {
-            return {
-                success: false,
-                reason: 'self_referral',
-                message: 'You cannot refer yourself!'
-            };
-        }
-
-        // Process the claim
-        const referralBonus = parseInt(process.env.REFERRAL_BONUS) || 50;
-        
-        // Add bonus to inviter
-        this.addToUserBalance(inviterId, referralBonus);
-        
-        // Increment inviter's referral count
-        const inviter = this.getUser(inviterId);
-        this.updateUser(inviterId, { referrals: inviter.referrals + 1 });
-        
-        // Mark claimer as having claimed
-        this.markReferralClaimed(claimerUserId);
-        
-        logger.logReferral('claim', inviterId, claimerUserId, inviteCode, `Bonus awarded: ${referralBonus}`);
-        
-        return {
-            success: true,
-            inviterId: inviterId,
-            bonus: referralBonus,
-            message: `Referral bonus of ${referralBonus} coins awarded to your inviter!`
-        };
-    }
-
-    // ===== STATISTICS METHODS =====
-
-    /**
-     * Get comprehensive statistics
-     * @returns {Object} Statistics object
-     */
-    getStatistics() {
-        const totalUsers = this.data.users.size;
-        const totalInvites = this.data.invites.size;
-        const totalClaimed = this.data.claimed.size;
-        
-        let totalBalance = 0;
-        let totalEarned = 0;
-        let totalReferrals = 0;
-        
-        for (const user of this.data.users.values()) {
-            totalBalance += user.balance;
-            totalEarned += user.totalEarned;
-            totalReferrals += user.referrals;
-        }
-        
-        return {
-            users: {
-                total: totalUsers,
-                totalBalance,
-                totalEarned,
-                averageBalance: totalUsers > 0 ? Math.round(totalBalance / totalUsers) : 0
-            },
-            referrals: {
-                totalInvites,
-                totalClaimed,
-                totalReferrals,
-                claimRate: totalInvites > 0 ? Math.round((totalClaimed / totalInvites) * 100) : 0
-            }
-        };
-    }
-
-    /**
-     * Get user statistics
-     * @param {string} userId - Discord user ID
-     * @returns {Object} User statistics
-     */
-    getUserStats(userId) {
-        const user = this.getUser(userId);
-        const userInvites = this.getUserInvites(userId);
-        const hasClaimed = this.hasClaimedReferral(userId);
-        
-        return {
-            balance: user.balance,
-            totalEarned: user.totalEarned,
-            referrals: user.referrals,
-            invitesRegistered: userInvites.length,
-            hasClaimedReferral: hasClaimed,
-            joinedAt: user.joinedAt,
-            lastEarn: user.lastEarn
-        };
     }
 }
 
 // Create and export singleton instance
 const dataManager = new DataManager();
-
 module.exports = dataManager;
