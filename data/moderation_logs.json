@@ -1,0 +1,22 @@
+{
+  "1364644968014020689": [
+    {
+      "id": "1759173415535",
+      "action": "WARNING",
+      "target": {
+        "id": "865579950857388063",
+        "username": "fishlarp",
+        "tag": "fishlarp"
+      },
+      "moderator": {
+        "id": "172655374736818176",
+        "username": "toadle",
+        "tag": "toadle"
+      },
+      "reason": "im sorry",
+      "timestamp": "2025-09-29T19:16:55.535Z",
+      "guild": "1364644968014020689",
+      "warningId": "1759173414789"
+    }
+  ]
+}

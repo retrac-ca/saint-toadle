@@ -150,3 +150,40 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - Moderation commands
 - Comprehensive logging
 - Utility commands
+
+
+# SAINT TOADLE ROADMAP: 
+1. Advanced Economy Features **[IN PROGRESS]**
+> Daily/Weekly Bonus: Allow users to claim daily or weekly consistent bonuses. **[COMPLETE]**
+> Gambling Games: Implement games like slots, blackjack, or roulette using coins. **[COMPLETE]**
+> Trade/Market: Let users trade items or create a virtual marketplace. **[COMPLETE]**
+> Bank System: Add deposit/withdraw features with interest or limits. **[COMPLETE]**
+> Achievements and Levels: Add experience and levels for engaging users. **[PARKED]**
+
+2. Enhanced Referral System
+> Referral Leaderboard: Track top inviters per server and display leaderboards. **[NOT REQUIRED]**
+> Referral Goals: Set milestones with extra bonuses. **[PARKED]**
+> Invite Link Generation: Allow users to generate custom invite links from the bot. **[NOT REQUIRED]**
+> Referral QR Codes: Generate invite QR codes for easy sharing. **[NOT REQUIRED]**
+
+3. More Moderation Tools
+> Auto-moderation: Automate detection of spam, links, swear words. **[NOT REQUIRED // Built into Native Discord Server Management]**
+> Customizable Warnings: Warning system with history and auto-ban thresholds. **[IN PROGRESS]**
+> Moderation Logs: Detailed logs with timestamps, auto-export.
+> Role Management: Automate assigning/removing roles based on activity, roles leveling.
+
+4. User Engagement & Community
+> Polls and Voting: Interactive polls with reaction votes. **[NOT REQUIRED // Built into Native Discord Server Management]**
+> Custom Commands: Let admins create server-specific commands.
+> Giveaways: Scheduled or instant giveaways for coins or roles.
+> Social Profiles: Extended user profiles and public stats.
+
+5. Integration & Automation
+> Integration with APIs: Link with external APIs like game stats, social media.
+> Webhook Automation: Announcements from feeds (e.g. news, YouTube).
+> Auto Welcome/Goodbye: Customizable welcome images/messages.
+
+6. Performance and Stability
+> Database Integration: Move JSON data to SQLite, MongoDB, or PostgreSQL.
+> Caching Improvements: Optimize data access for large servers.
+> Load Balancing: Support for sharding and distributed setups.
