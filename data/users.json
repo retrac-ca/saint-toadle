@@ -1,18 +1,18 @@
 {
   "172655374736818176": {
-    "balance": 911,
-    "totalEarned": 5883,
+    "balance": 0,
+    "totalEarned": 6391,
     "referrals": 2,
-    "lastEarn": 1758925973806,
+    "lastEarn": 1759287703486,
     "joinedAt": 1758904903843,
-    "lastDaily": 1758906382629,
+    "lastDaily": 1759287700573,
     "lastWeekly": 1758906393399,
     "inventory": {
       "potion": 1,
       "diamond": 49
     },
-    "bankBalance": 3962,
-    "lastBankActivity": 1759108704635
+    "bankBalance": 5381,
+    "lastBankActivity": 1759287710031
   },
   "261330903731666945": {
     "balance": 10,

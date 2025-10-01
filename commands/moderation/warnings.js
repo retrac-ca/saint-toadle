@@ -6,7 +6,7 @@ module.exports = {
     name: 'warnings',
     description: 'View warnings for a user',
     usage: '!warnings [@user]',
-    permissions: PermissionFlagsBits.KickMembers,
+    permissions: [PermissionFlagsBits.KickMembers],
 
     async execute(message, args) {
         const guild = message.guild;
@@ -37,7 +37,11 @@ module.exports = {
                 warningsData = {};
             }
 
-            if (!warningsData[guild.id] || !warningsData[guild.id][targetUser.id] || warningsData[guild.id][targetUser.id].warnings.length === 0) {
+            if (
+                !warningsData[guild.id] ||
+                !warningsData[guild.id][targetUser.id] ||
+                warningsData[guild.id][targetUser.id].warnings.length === 0
+            ) {
                 return message.reply(`✅ **${targetUser.username}** has no warnings in this server.`);
             }
 
@@ -61,7 +65,7 @@ module.exports = {
             });
 
             if (warnings.length > 10) {
-                embed.setDescription(embed.data.description + '\n*(Showing 10 most recent warnings)*');
+                embed.setDescription((embed.data?.description ?? embed.description) + '\n*(Showing 10 most recent warnings)*');
             }
 
             await message.channel.send({ embeds: [embed] });

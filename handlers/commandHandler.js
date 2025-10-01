@@ -90,6 +90,18 @@ class CommandHandler {
         return 'general';
     }
 
+    getCommandsByCategory() {
+        const categories = {};
+        for (const command of this.commands.values()) {
+            const category = command.category || 'general';
+            if (!categories[category]) {
+                categories[category] = [];
+            }
+            categories[category].push(command);
+        }
+        return categories;
+    }
+
     async processCommand(client, message) {
         try {
             const start = Date.now();

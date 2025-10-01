@@ -1,24 +1,20 @@
-const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const fs = require('fs').promises;
 const path = require('path');
 
 module.exports = {
-    data: new SlashCommandBuilder()
-        .setName('modstats')
-        .setDescription('View moderation statistics for the server')
-        .addIntegerOption(option =>
-            option.setName('days')
-                .setDescription('Number of days to analyze (default: 30)')
-                .setRequired(false)
-                .setMinValue(1)
-                .setMaxValue(365))
-        .setDefaultMemberPermissions(PermissionFlagsBits.KickMembers),
+    name: 'modstats',
+    description: 'View moderation statistics for the server',
+    usage: '!modstats [days]',
+    permissions: [PermissionFlagsBits.KickMembers],
 
-    async execute(interaction) {
-        const days = interaction.options.getInteger('days') || 30;
-        const guild = interaction.guild;
+    async execute(message, args) {
+        if (!message.member.permissions.has(this.permissions)) {
+            return message.reply('❌ You do not have permission to use this command.');
+        }
 
-        await interaction.deferReply();
+        const days = args.length > 0 ? Math.max(1, Math.min(365, parseInt(args[0]) || 30)) : 30;
+        const guild = message.guild;
 
         try {
             const stats = await this.getLogStats(guild.id, days);
@@ -30,7 +26,7 @@ module.exports = {
             try {
                 const warningsData = await fs.readFile(warningsPath, 'utf8');
                 const warnings = JSON.parse(warningsData);
-                
+
                 if (warnings[guild.id]) {
                     const guildWarnings = warnings[guild.id];
                     usersWithWarnings = Object.keys(guildWarnings).length;
@@ -79,13 +75,11 @@ module.exports = {
                 inline: true 
             });
 
-            await interaction.editReply({ embeds: [statsEmbed] });
+            await message.channel.send({ embeds: [statsEmbed] });
 
         } catch (error) {
             console.error('Error in modstats command:', error);
-            await interaction.editReply({ 
-                content: '❌ An error occurred while fetching moderation statistics. Please try again.'
-            });
+            await message.reply('❌ An error occurred while fetching moderation statistics. Please try again.');
         }
     },
 
@@ -98,7 +92,7 @@ module.exports = {
 
             const cutoffDate = new Date();
             cutoffDate.setDate(cutoffDate.getDate() - days);
-            
+
             const recentLogs = guildLogs.filter(log => new Date(log.timestamp) >= cutoffDate);
 
             const stats = {
