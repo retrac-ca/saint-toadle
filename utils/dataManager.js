@@ -181,6 +181,10 @@ class DataManager {
         return this.userManager.addItemToUser(userId, item, quantity);
     }
 
+    addItemToUserInventory(userId, item, quantity) {
+        return this.userManager.addItemToUserInventory(userId, item, quantity);
+    }
+
     removeItemFromUser(userId, item, quantity) {
         return this.userManager.removeItemFromUser(userId, item, quantity);
     }

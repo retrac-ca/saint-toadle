@@ -134,7 +134,7 @@ class UserManager {
     }
 
     /**
-     * Add item(s) to user's inventory
+     * Add item(s) to user's inventory (requires item to be in catalog)
      * @param {string} userId - Discord user ID
      * @param {string} item - Item name
      * @param {number} quantity - Quantity to add
@@ -148,6 +148,24 @@ class UserManager {
         user.inventory[item] += quantity;
         this.updateUser(userId, user);
         logger.debug(`🛒 Added ${quantity}x ${item} to user ${userId}`);
+        return true;
+    }
+
+    /**
+     * Add item(s) to user's inventory directly (bypasses validation for store purchases)
+     * @param {string} userId - Discord user ID
+     * @param {string} item - Item name
+     * @param {number} quantity - Quantity to add
+     * @returns {boolean} True if successful
+     */
+    addItemToUserInventory(userId, item, quantity) {
+        if (quantity <= 0) return false;
+        const user = this.getUser(userId);
+        if (!user.inventory) user.inventory = {};
+        if (!user.inventory[item]) user.inventory[item] = 0;
+        user.inventory[item] += quantity;
+        this.updateUser(userId, user);
+        logger.debug(`🛒 Added ${quantity}x ${item} to user ${userId} inventory (store purchase)`);
         return true;
     }
 
