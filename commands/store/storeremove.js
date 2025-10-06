@@ -10,7 +10,7 @@ module.exports = {
   async execute(message, args, client) {
     try {
       // Only allow users with "Admin" role (change role name if needed)
-      const adminRoleName = 'Admin';
+      const adminRoleName = 'Wise Guy';
       if (!message.member.roles.cache.some(role => role.name === adminRoleName)) {
         return message.reply('❌ You do not have permission to remove items from the store.');
       }

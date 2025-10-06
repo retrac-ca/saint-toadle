@@ -1,0 +1,41 @@
+{
+  "nextId": 4,
+  "giveaways": {
+    "1": {
+      "id": 1,
+      "guildId": "826291664053731358",
+      "channelId": "1000088676979707914",
+      "messageId": "1424557747713740810",
+      "hostId": "172655374736818176",
+      "prize": "No custom prize",
+      "currencyAmount": 500,
+      "winnerCount": 1,
+      "endTimestamp": 1759711492974,
+      "ended": true
+    },
+    "2": {
+      "id": 2,
+      "guildId": "826291664053731358",
+      "channelId": "1000088676979707914",
+      "messageId": "1424558074215268384",
+      "hostId": "172655374736818176",
+      "prize": "No custom prize",
+      "currencyAmount": 500,
+      "winnerCount": 1,
+      "endTimestamp": 1759711570884,
+      "ended": true
+    },
+    "3": {
+      "id": 3,
+      "guildId": "826291664053731358",
+      "channelId": "1000088676979707914",
+      "messageId": "1424563608632819863",
+      "hostId": "172655374736818176",
+      "prize": "No custom prize",
+      "currencyAmount": 500,
+      "winnerCount": 1,
+      "endTimestamp": 1759712890359,
+      "ended": true
+    }
+  }
+}

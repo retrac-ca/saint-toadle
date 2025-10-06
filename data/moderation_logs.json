@@ -18,5 +18,25 @@
       "guild": "1364644968014020689",
       "warningId": "1759173414789"
     }
+  ],
+  "826291664053731358": [
+    {
+      "id": "1759681793327",
+      "action": "WARNING",
+      "target": {
+        "id": "525769230411628574",
+        "username": "solidsnake06",
+        "tag": "solidsnake06"
+      },
+      "moderator": {
+        "id": "172655374736818176",
+        "username": "toadle",
+        "tag": "toadle"
+      },
+      "reason": "Shoes are too fancy",
+      "timestamp": "2025-10-05T16:29:53.327Z",
+      "guild": "826291664053731358",
+      "warningId": "1759681792381"
+    }
   ]
 }
