@@ -9,6 +9,7 @@ const eventHandler = require('./handlers/eventHandler');
 const commandHandler = require('./handlers/commandHandler');
 const { setupDailyInterestTask } = require('./utils/interestScheduler');
 const giveawayManager = require('./utils/managers/giveawayManager');
+const configManager = require('./utils/managers/configManager');
 
 const client = new Client({
   intents: [
@@ -38,7 +39,7 @@ const WELCOME_CHANNEL_ID = process.env.WELCOME_CHANNEL_ID;
 const LEAVE_CHANNEL_ID = process.env.LEAVE_CHANNEL_ID;
 
 // When client is ready
-client.once('ready', async () => {
+client.once('clientReady', async () => {
   try {
     logger.info(`🎉 ${client.user.tag} is now online!`);
     logger.info(`📊 Serving ${client.guilds.cache.size} servers`);
@@ -48,17 +49,25 @@ client.once('ready', async () => {
     await dataManager.initialize();
     logger.info('💾 Data manager initialized');
 
+    // Initialize configuration manager
+    try {
+      await configManager.loadConfigs();
+      logger.info('⚙️ Configuration manager initialized');
+    } catch (error) {
+      logger.error('Failed to initialize configuration manager:', error);
+    }
+
     // Initialize invite tracker
     await inviteTracker.initialize(client);
     logger.info('🎯 Invite tracker initialized');
 
     // Set bot activity
-    client.user.setActivity('!help for commands', { type: 'LISTENING' });
+    client.user.setActivity(`${config.prefix}help for commands`, { type: 'LISTENING' });
 
     // Hand off client to giveawayManager for scheduled endings
     giveawayManager.setClient(client);
 
-    // Register all event handlers (including interactionCreate for giveaway entries)
+    // Register all event handlers (including interactionCreate for giveaways)
     eventHandler.initializeEvents(client);
 
     // Schedule daily interest notifications
@@ -71,50 +80,56 @@ client.once('ready', async () => {
   }
 });
 
-// Message command handler
+// Message command handler with configurable prefix support
 client.on('messageCreate', async (message) => {
   try {
-    if (message.author.bot || !message.content.startsWith(config.prefix)) return;
+    if (message.author.bot || !message.guild) return;
+
+    const guildId = message.guild.id;
+    const guildPrefix = configManager.getPrefix(guildId);
+
+    if (!message.content.startsWith(guildPrefix) && !message.content.startsWith(config.prefix)) return;
+
+    const usedPrefix = message.content.startsWith(guildPrefix) ? guildPrefix : config.prefix;
+    message.usedPrefix = usedPrefix;
+
     await commandHandler.processCommand(client, message);
   } catch (error) {
     logger.error('❌ Error processing message:', error);
   }
 });
 
-// Guild member join
+// Guild member join with configurable welcome messages
 client.on('guildMemberAdd', async (member) => {
   try {
     logger.info(`👋 New member joined: ${member.user.tag} (${member.user.id})`);
 
-    // Welcome embed
-    if (WELCOME_CHANNEL_ID) {
-      const welcomeChannel = member.guild.channels.cache.get(WELCOME_CHANNEL_ID);
-      if (welcomeChannel?.send) {
+    const guildConfig = configManager.getConfig(member.guild.id);
+    if (!guildConfig.features.welcome_messages) {
+      logger.debug(`Welcome messages disabled for guild ${member.guild.name}`);
+      return;
+    }
+
+    const channelId = guildConfig.channels.welcome_channel || WELCOME_CHANNEL_ID;
+    if (channelId) {
+      const ch = member.guild.channels.cache.get(channelId);
+      if (ch?.send) {
         const embed = {
           color: 0x00FF00,
           title: '👋 Welcome!',
           description: `${member} joined **${member.guild.name}**`,
           thumbnail: { url: member.user.displayAvatarURL() },
           fields: [
-            {
-              name: 'Account Created',
-              value: `<t:${Math.floor(member.user.createdTimestamp / 1000)}:F>`,
-              inline: true
-            },
-            {
-              name: 'Member Count',
-              value: `${member.guild.memberCount}`,
-              inline: true
-            }
+            { name: 'Account Created', value: `<t:${Math.floor(member.user.createdTimestamp/1000)}:F>`, inline: true },
+            { name: 'Member Count', value: `${member.guild.memberCount}`, inline: true }
           ],
           timestamp: new Date().toISOString(),
           footer: { text: 'Welcome!' }
         };
-        await welcomeChannel.send({ embeds: [embed] });
+        await ch.send({ embeds: [embed] });
       }
     }
 
-    // Referral prompt & invite handling
     await sendReferralPrompt(member);
     await inviteTracker.handleMemberJoin(member);
   } catch (error) {
@@ -122,36 +137,34 @@ client.on('guildMemberAdd', async (member) => {
   }
 });
 
-// Guild member leave
+// Guild member leave with configurable leave messages
 client.on('guildMemberRemove', async (member) => {
   try {
     logger.info(`👋 Member left: ${member.user.tag} (${member.user.id})`);
-    if (LEAVE_CHANNEL_ID) {
-      const leaveChannel = member.guild.channels.cache.get(LEAVE_CHANNEL_ID);
-      if (leaveChannel?.send) {
+
+    const guildConfig = configManager.getConfig(member.guild.id);
+    if (!guildConfig.features.leave_messages) {
+      logger.debug(`Leave messages disabled for guild ${member.guild.name}`);
+      return;
+    }
+
+    const channelId = guildConfig.channels.leave_channel || LEAVE_CHANNEL_ID;
+    if (channelId) {
+      const ch = member.guild.channels.cache.get(channelId);
+      if (ch?.send) {
         const embed = {
           color: 0xFF0000,
           title: '👋 Goodbye!',
           description: `**${member.user.tag}** has left **${member.guild.name}**`,
           thumbnail: { url: member.user.displayAvatarURL() },
           fields: [
-            {
-              name: 'Joined',
-              value: member.joinedTimestamp
-                ? `<t:${Math.floor(member.joinedTimestamp / 1000)}:F>`
-                : 'Unknown',
-              inline: true
-            },
-            {
-              name: 'Member Count',
-              value: `${member.guild.memberCount}`,
-              inline: true
-            }
+            { name: 'Joined', value: member.joinedTimestamp ? `<t:${Math.floor(member.joinedTimestamp/1000)}:F>` : 'Unknown', inline: true },
+            { name: 'Member Count', value: `${member.guild.memberCount}`, inline: true }
           ],
           timestamp: new Date().toISOString(),
           footer: { text: 'Goodbye!' }
         };
-        await leaveChannel.send({ embeds: [embed] });
+        await ch.send({ embeds: [embed] });
       }
     }
   } catch (error) {
@@ -179,61 +192,34 @@ client.on('inviteDelete', async (invite) => {
 
 async function sendReferralPrompt(member) {
   try {
-    const welcomeMessage = `
-🎉 **Welcome to ${member.guild.name}!**
-
-If someone invited you to this server, help them earn rewards:
-\`!claiminvite <invite_code>\`
-
-Use \`!help\` for all commands!
-    `.trim();
-
-    await member.send(welcomeMessage);
+    const prefix = configManager.getPrefix(member.guild.id);
+    const msg = `🎉 **Welcome to ${member.guild.name}!**\n\n` +
+                `Use \`${prefix}claiminvite <invite_code>\` if you have one.\n` +
+                `Use \`${prefix}help\` for commands!`;
+    await member.send(msg);
     logger.debug(`📧 Referral prompt sent to ${member.user.tag}`);
-  } catch (error) {
-    logger.debug(`⚠️ Could not DM ${member.user.tag}: ${error.message}`);
-    const channel = member.guild.systemChannel;
-    if (channel) {
-      try {
-        await channel.send(`
-👋 Welcome ${member}!
-
-Use \`!claiminvite <invite_code>\` to help your inviter earn rewards!
-Use \`!help\`.
-        `.trim());
-        logger.debug(`📢 Welcome message sent in system channel for ${member.user.tag}`);
-      } catch (err) {
-        logger.debug(`⚠️ Could not send to system channel: ${err.message}`);
-      }
+  } catch {
+    const ch = member.guild.systemChannel;
+    if (ch) {
+      const prefix = configManager.getPrefix(member.guild.id);
+      await ch.send(`👋 Welcome ${member}!\nUse \`${prefix}help\` for commands!`);
     }
   }
 }
 
-// Discord client error/warning logging
-client.on('error', (error) => logger.error('❌ Discord client error:', error));
-client.on('warn', (warning) => logger.warn('⚠️ Discord client warning:', warning));
+// Error/warning logging
+client.on('error', e => logger.error('❌ Discord client error:', e));
+client.on('warn', w => logger.warn('⚠️ Discord client warning:', w));
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
   logger.info('🛑 Shutting down gracefully...');
-  try {
-    await dataManager.saveAll();
-    logger.info('💾 Data saved successfully');
-    client.destroy();
-    logger.info('🔌 Discord connection closed');
-    process.exit(0);
-  } catch (error) {
-    logger.error('❌ Error during shutdown:', error);
-    process.exit(1);
-  }
+  await dataManager.saveAll();
+  client.destroy();
+  process.exit(0);
 });
-process.on('uncaughtException', (error) => {
-  logger.error('💥 Uncaught Exception:', error);
-  process.exit(1);
-});
-process.on('unhandledRejection', (reason, promise) => {
-  logger.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
-});
+process.on('uncaughtException', e => { logger.error('💥 Uncaught Exception:', e); process.exit(1); });
+process.on('unhandledRejection', (r,p) => { logger.error('💥 Unhandled Rejection at:', p, 'reason:', r); });
 
 // Start the bot
 function startBot() {
@@ -242,14 +228,8 @@ function startBot() {
     process.exit(1);
   }
   logger.info('🚀 Starting Saint Toadle Discord Bot...');
-  logger.info(`🔧 Debug Mode: ${config.debugMode ? 'ON' : 'OFF'}`);
-  logger.info(`💰 Earn Range: ${config.earnMin}-${config.earnMax} coins`);
-  logger.info(`🎯 Referral Bonus: ${config.referralBonus} coins`);
-
-  client.login(config.token).catch((error) => {
-    logger.error('❌ Failed to login to Discord:', error);
-    process.exit(1);
-  });
+  logger.info(`🔧 Debug Mode: ${config.debugMode?'ON':'OFF'}`);
+  client.login(config.token).catch(e => { logger.error('❌ Failed to login:', e); process.exit(1); });
 }
 
 // Load commands then launch

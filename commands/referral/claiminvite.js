@@ -106,6 +106,9 @@ module.exports = {
                 return await message.reply({ embeds: [errorEmbed] });
             }
 
+            // Award first-referral badge to inviter
+            await dataManager.awardBadge(result.inviterId, 'first-referral');
+
             // Success! Create celebration embed
             const successEmbed = new EmbedBuilder()
                 .setColor('#00ff00')

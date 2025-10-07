@@ -1,15 +1,45 @@
 const logger = require('../logger');
+const DataStorage = require('../storage/dataStorage');
 
 class UserManager {
     constructor(userData, itemsData) {
-        this.userData = userData;
-        this.itemsData = itemsData;
+        this.userData = userData;     // Map of userId → userData
+        this.itemsData = itemsData;   // Map of itemKey → itemInfo
+        this.storage = new DataStorage();
+    }
+
+    /**
+     * Return all user records as an object keyed by userId.
+     * @returns {Promise<Object.<string, Object>>}
+     */
+    async getAllUsers() {
+        const obj = {};
+        for (const [id, data] of this.userData.entries()) {
+            obj[id] = data;
+        }
+        return obj;
+    }
+
+    /**
+     * Persist all user records passed in.
+     * @param {Object.<string, Object>} allUsers
+     * @returns {Promise<void>}
+     */
+    async saveAllUsers(allUsers) {
+        // Update in-memory Map
+        this.userData.clear();
+        for (const [id, data] of Object.entries(allUsers)) {
+            this.userData.set(id, data);
+        }
+        // Persist the Map directly so DataStorage can iterate it
+        await this.storage.saveData('users', this.userData);
+        logger.debug('💾 Saved all users to storage');
     }
 
     /**
      * Get user data by ID
-     * @param {string} userId - Discord user ID
-     * @returns {Object} User data object
+     * @param {string} userId
+     * @returns {Object}
      */
     getUser(userId) {
         if (!this.userData.has(userId)) {
@@ -21,23 +51,19 @@ class UserManager {
                 lastEarn: null,
                 lastBankActivity: null,
                 joinedAt: Date.now(),
-                inventory: {}
+                inventory: {},
+                badges: []
             };
             this.userData.set(userId, newUser);
             logger.debug(`👤 Created new user record: ${userId}`);
         }
-        
         const user = this.userData.get(userId);
-        if (!user.inventory) user.inventory = {};
-        if (user.bankBalance === undefined) user.bankBalance = 0;
+        user.inventory = user.inventory || {};
+        user.bankBalance = user.bankBalance || 0;
+        user.badges = user.badges || [];
         return user;
     }
 
-    /**
-     * Update user data
-     * @param {string} userId - Discord user ID
-     * @param {Object} updates - Object containing fields to update
-     */
     updateUser(userId, updates) {
         const user = this.getUser(userId);
         Object.assign(user, updates);
@@ -45,142 +71,73 @@ class UserManager {
         logger.debug(`👤 Updated user ${userId}:`, updates);
     }
 
-    /**
-     * Get user balance
-     * @param {string} userId - Discord user ID
-     * @returns {number} User's current balance
-     */
     getUserBalance(userId) {
         return this.getUser(userId).balance;
     }
 
-    /**
-     * Set user balance
-     * @param {string} userId - Discord user ID
-     * @param {number} amount - New balance amount
-     */
     setUserBalance(userId, amount) {
         this.updateUser(userId, { balance: Math.max(0, amount) });
         logger.logTransaction('set_balance', userId, amount);
     }
 
-    /**
-     * Add to user balance
-     * @param {string} userId - Discord user ID
-     * @param {number} amount - Amount to add
-     */
     addToUserBalance(userId, amount) {
         const user = this.getUser(userId);
         const newBalance = user.balance + amount;
-        const newTotalEarned = user.totalEarned + amount;
-        
-        this.updateUser(userId, { 
+        const newTotalEarned = user.totalEarned + Math.max(0, amount);
+        this.updateUser(userId, {
             balance: newBalance,
             totalEarned: newTotalEarned
         });
-        
         logger.logTransaction('add_balance', userId, amount, `New balance: ${newBalance}`);
     }
 
-    /**
-     * Remove from user balance
-     * @param {string} userId - Discord user ID
-     * @param {number} amount - Amount to remove
-     * @returns {boolean} True if successful, false if insufficient funds
-     */
     removeFromUserBalance(userId, amount) {
         const user = this.getUser(userId);
-        
         if (user.balance < amount) {
             logger.debug(`❌ Insufficient funds for user ${userId}: ${user.balance} < ${amount}`);
             return false;
         }
-        
         this.updateUser(userId, { balance: user.balance - amount });
         logger.logTransaction('remove_balance', userId, amount, `New balance: ${user.balance - amount}`);
-        
         return true;
     }
 
-    /**
-     * Check if item key is valid in the item catalog
-     * @param {string} item - Item key
-     * @returns {boolean} True if item exists in catalog
-     */
     isValidItem(item) {
         return this.itemsData.has(item);
     }
 
-    /**
-     * Get item information from catalog
-     * @param {string} item - Item key
-     * @returns {Object} Item data object or undefined if not found
-     */
     getItemInfo(item) {
         return this.itemsData.get(item);
     }
 
-    /**
-     * Get quantity of an item in user's inventory
-     * @param {string} userId - Discord user ID
-     * @param {string} item - Item name
-     * @returns {number} Quantity owned, or 0 if none or invalid item
-     */
     getUserItemQuantity(userId, item) {
         if (!this.isValidItem(item)) return 0;
         const user = this.getUser(userId);
-        if (!user.inventory) return 0;
         return user.inventory[item] || 0;
     }
 
-    /**
-     * Add item(s) to user's inventory (requires item to be in catalog)
-     * @param {string} userId - Discord user ID
-     * @param {string} item - Item name
-     * @param {number} quantity - Quantity to add
-     * @returns {boolean} True if successful
-     */
     addItemToUser(userId, item, quantity) {
         if (quantity <= 0 || !this.isValidItem(item)) return false;
         const user = this.getUser(userId);
-        if (!user.inventory) user.inventory = {};
-        if (!user.inventory[item]) user.inventory[item] = 0;
-        user.inventory[item] += quantity;
+        user.inventory[item] = (user.inventory[item] || 0) + quantity;
         this.updateUser(userId, user);
         logger.debug(`🛒 Added ${quantity}x ${item} to user ${userId}`);
         return true;
     }
 
-    /**
-     * Add item(s) to user's inventory directly (bypasses validation for store purchases)
-     * @param {string} userId - Discord user ID
-     * @param {string} item - Item name
-     * @param {number} quantity - Quantity to add
-     * @returns {boolean} True if successful
-     */
     addItemToUserInventory(userId, item, quantity) {
         if (quantity <= 0) return false;
         const user = this.getUser(userId);
-        if (!user.inventory) user.inventory = {};
-        if (!user.inventory[item]) user.inventory[item] = 0;
-        user.inventory[item] += quantity;
+        user.inventory[item] = (user.inventory[item] || 0) + quantity;
         this.updateUser(userId, user);
         logger.debug(`🛒 Added ${quantity}x ${item} to user ${userId} inventory (store purchase)`);
         return true;
     }
 
-    /**
-     * Remove item(s) from user's inventory
-     * @param {string} userId - Discord user ID
-     * @param {string} item - Item name
-     * @param {number} quantity - Quantity to remove
-     * @returns {boolean} True if successful, false if insufficient quantity or invalid item
-     */
     removeItemFromUser(userId, item, quantity) {
         if (quantity <= 0 || !this.isValidItem(item)) return false;
         const user = this.getUser(userId);
-        if (!user.inventory || !user.inventory[item]) return false;
-        if (user.inventory[item] < quantity) return false;
+        if ((user.inventory[item] || 0) < quantity) return false;
         user.inventory[item] -= quantity;
         if (user.inventory[item] === 0) delete user.inventory[item];
         this.updateUser(userId, user);
@@ -188,18 +145,11 @@ class UserManager {
         return true;
     }
 
-    /**
-     * Get leaderboard data
-     * @param {number} limit - Number of top users to return
-     * @returns {Array} Array of user data sorted by balance
-     */
     getLeaderboard(limit = 10) {
-        const users = Array.from(this.userData.entries())
-            .map(([userId, userData]) => ({ userId, ...userData }))
+        return Array.from(this.userData.entries())
+            .map(([userId, data]) => ({ userId, ...data }))
             .sort((a, b) => b.balance - a.balance)
             .slice(0, limit);
-            
-        return users;
     }
 }
 

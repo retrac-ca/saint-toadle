@@ -1,79 +1,51 @@
-/**
- * Balance Command - Check User Balance
- * 
- * Allows users to check their own balance or view another user's balance.
- * Displays current balance and basic statistics.
- */
-
 const { EmbedBuilder } = require('discord.js');
 const dataManager = require('../../utils/dataManager');
-const logger = require('../../utils/logger');
+const configManager = require('../../utils/managers/configManager');
 
 module.exports = {
-    name: 'balance',
-    description: 'Check your current balance or another user\'s balance',
-    aliases: ['bal', 'coins', 'money'],
-    usage: '!balance [@user]',
-    category: 'economy',
-    cooldown: 3,
-    
-    async execute(message, args, client) {
-        try {
-            // Determine target user (mentioned user or message author)
-            const targetUser = message.mentions.users.first() || message.author;
-            const isOwnBalance = targetUser.id === message.author.id;
-            
-            // Get user data
-            const userData = dataManager.getUser(targetUser.id);
-            const userStats = dataManager.getUserStats(targetUser.id);
-            
-            // Create embed
-            const embed = new EmbedBuilder()
-                .setColor('#00ff00')
-                .setTitle(`💰 ${isOwnBalance ? 'Your Balance' : `${targetUser.username}'s Balance`}`)
-                .setThumbnail(targetUser.displayAvatarURL({ dynamic: true }))
-                .addFields(
-                    {
-                        name: '🏦 Current Balance',
-                        value: `${userData.balance.toLocaleString()} coins`,
-                        inline: true
-                    },
-                    {
-                        name: '📈 Total Earned',
-                        value: `${userData.totalEarned.toLocaleString()} coins`,
-                        inline: true
-                    },
-                    {
-                        name: '🎯 Referrals',
-                        value: `${userData.referrals} users`,
-                        inline: true
-                    }
-                )
-                .setFooter({ 
-                    text: `Use ${client.config.prefix}earn to earn more coins!`,
-                    iconURL: client.user.displayAvatarURL()
-                })
-                .setTimestamp();
+  name: 'balance',
+  aliases: ['bal', 'coins', 'money'],
+  description: 'Check your coin balance and bank info',
+  usage: '!balance [user]',
+  category: 'economy',
+  cooldown: 3,
+  async execute(message, args) {
+    const guildId = message.guild.id;
 
-            // Add last earn time if available
-            if (userData.lastEarn && isOwnBalance) {
-                const lastEarnDate = new Date(userData.lastEarn);
-                embed.addFields({
-                    name: '⏰ Last Earn',
-                    value: lastEarnDate.toLocaleString(),
-                    inline: true
-                });
-            }
-
-            await message.reply({ embeds: [embed] });
-            
-        } catch (error) {
-            logger.logError('Balance command execution', error, {
-                user: message.author.id,
-                targetUser: message.mentions.users.first()?.id
-            });
-            
-            await message.reply('❌ An error occurred while checking the balance.');
-        }
+    // Check if economy is enabled
+    if (!configManager.isFeatureEnabled(guildId, 'economy_enabled')) {
+      return message.channel.send('❌ Economy features are disabled in this server.');
     }
+
+    // Get target user (mention or message author)
+    const targetUser = message.mentions.users.first() || message.author;
+    const userId = targetUser.id;
+
+    try {
+      // Get user data
+      const user = dataManager.getUser(userId);
+      const balance = user.balance || 0;
+      const bankBalance = user.bankBalance || 0;
+      const totalEarned = user.totalEarned || 0;
+
+      // Create embed
+      const embed = new EmbedBuilder()
+        .setColor('#00ff00')
+        .setTitle(`💰 ${targetUser.username}'s Balance`)
+        .setThumbnail(targetUser.displayAvatarURL({ dynamic: true }))
+        .addFields(
+          { name: '💵 Wallet', value: `${balance.toLocaleString()} coins`, inline: true },
+          { name: '🏦 Bank', value: `${bankBalance.toLocaleString()} coins`, inline: true },
+          { name: '💎 Total', value: `${(balance + bankBalance).toLocaleString()} coins`, inline: true },
+          { name: '📈 Total Earned', value: `${totalEarned.toLocaleString()} coins`, inline: false }
+        )
+        .setTimestamp();
+
+      await message.channel.send({ embeds: [embed] });
+
+    } catch (error) {
+      console.error('Error in balance command:', error);
+      await message.channel.send('❌ An error occurred while checking the balance.');
+    }
+  }
 };

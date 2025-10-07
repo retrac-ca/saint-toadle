@@ -8,6 +8,7 @@
 const { EmbedBuilder } = require('discord.js');
 const dataManager = require('../../utils/dataManager');
 const logger = require('../../utils/logger');
+const configManager = require('../../utils/managers/configManager');
 
 module.exports = {
     name: 'earn',
@@ -20,15 +21,22 @@ module.exports = {
     async execute(message, args, client) {
         try {
             const userId = message.author.id;
-            
-            // Get random earn amount from config
-            const minEarn = client.config.earnMin;
-            const maxEarn = client.config.earnMax;
+            const guildId = message.guild.id;
+
+            // Check if economy is enabled for this guild
+            if (!configManager.isFeatureEnabled(guildId, 'economy_enabled')) {
+                return message.channel.send('❌ Economy features are disabled in this server.');
+            }
+
+            // Get configured earn range for this guild
+            const economyConfig = configManager.getEconomyConfig(guildId);
+            const minEarn = economyConfig.earn_range.min;
+            const maxEarn = economyConfig.earn_range.max;
             const earnAmount = Math.floor(Math.random() * (maxEarn - minEarn + 1)) + minEarn;
             
             // Add coins to user balance
-            dataManager.addToUserBalance(userId, earnAmount);
-            dataManager.updateUser(userId, { lastEarn: Date.now() });
+            await dataManager.addToUserBalance(userId, earnAmount);
+            await dataManager.updateUser(userId, { lastEarn: Date.now() });
             
             // Get updated balance
             const newBalance = dataManager.getUserBalance(userId);
@@ -70,6 +78,7 @@ module.exports = {
                 })
                 .setTimestamp();
 
+
             // Add random earning tip occasionally
             if (Math.random() < 0.3) { // 30% chance
                 const tips = [
@@ -87,7 +96,7 @@ module.exports = {
                 });
             }
 
-            await message.reply({ embeds: [embed] });
+            await message.channel.send({ embeds: [embed] });
             
             // Log the transaction
             logger.logTransaction('earn', userId, earnAmount, `New balance: ${newBalance}`);
@@ -97,7 +106,7 @@ module.exports = {
                 user: message.author.id
             });
             
-            await message.reply('❌ An error occurred while earning coins. Please try again later.');
+            await message.channel.send('❌ An error occurred while earning coins. Please try again later.');
         }
     }
 };

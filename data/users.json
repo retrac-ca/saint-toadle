@@ -1,8 +1,8 @@
 {
   "172655374736818176": {
-    "balance": 1003,
-    "totalEarned": 11347,
-    "referrals": 2,
+    "balance": 1585,
+    "totalEarned": 13241,
+    "referrals": 3,
     "lastEarn": 1759755049458,
     "joinedAt": 1758904903843,
     "lastDaily": 1759681264042,
@@ -12,8 +12,16 @@
       "diamond": 49,
       "AK47": 1
     },
-    "bankBalance": 9194,
-    "lastBankActivity": 1759711616326
+    "bankBalance": 10769,
+    "lastBankActivity": 1759711616326,
+    "bio": "The Don",
+    "links": {},
+    "badges": [
+      "investor",
+      "first-referral"
+    ],
+    "dailyStreak": 0,
+    "guildId": "826291664053731358"
   },
   "261330903731666945": {
     "balance": 10,
@@ -21,7 +29,14 @@
     "referrals": 0,
     "lastEarn": null,
     "joinedAt": 1758904929352,
-    "inventory": {}
+    "inventory": {},
+    "bankBalance": 0,
+    "lastBankActivity": null,
+    "bio": "",
+    "links": {},
+    "badges": [],
+    "dailyStreak": 0,
+    "guildId": "826291664053731358"
   },
   "865579950857388063": {
     "balance": 0,
@@ -32,16 +47,40 @@
     "inventory": {
       "diamond": 1
     },
-    "bankBalance": 0
+    "bankBalance": 0,
+    "lastBankActivity": null,
+    "bio": "",
+    "links": {},
+    "badges": [],
+    "dailyStreak": 0,
+    "guildId": "826291664053731358"
   },
   "323521232400023553": {
-    "balance": 10,
-    "totalEarned": 10,
+    "balance": 122,
+    "totalEarned": 184,
+    "referrals": 0,
+    "lastEarn": 1759766689026,
+    "joinedAt": 1759681538507,
+    "inventory": {},
+    "bankBalance": 0,
+    "lastBankActivity": null,
+    "bio": "",
+    "links": {},
+    "badges": [
+      "crime-master"
+    ],
+    "dailyStreak": 0,
+    "guildId": "826291664053731358"
+  },
+  "700990108735635498": {
+    "balance": 4,
+    "totalEarned": 4,
     "bankBalance": 0,
     "referrals": 0,
-    "lastEarn": null,
+    "lastEarn": 1759840419847,
     "lastBankActivity": null,
-    "joinedAt": 1759681538507,
-    "inventory": {}
+    "joinedAt": 1759840283719,
+    "inventory": {},
+    "badges": []
   }
 }

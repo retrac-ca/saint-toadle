@@ -1,0 +1,51 @@
+{
+  "826291664053731358": {
+    "prefix": "!",
+    "economy": {
+      "earn_range": {
+        "min": 1,
+        "max": 50
+      },
+      "crime_settings": {
+        "success_chance": 0.85,
+        "reward_range": {
+          "min": 10,
+          "max": 109
+        },
+        "fine_range": {
+          "min": 10,
+          "max": 59
+        }
+      },
+      "invest_settings": {
+        "fail_chance": 0.25,
+        "multiplier_range": {
+          "min": 0.5,
+          "max": 2
+        }
+      },
+      "daily_bonus": {
+        "min": 75,
+        "max": 150
+      },
+      "bank_interest_rate": 0.02
+    },
+    "channels": {
+      "welcome_channel": null,
+      "leave_channel": null,
+      "logs_channel": null,
+      "interest_notification": null
+    },
+    "roles": {
+      "admin_role": "Admin",
+      "moderator_role": "Moderator"
+    },
+    "features": {
+      "welcome_messages": true,
+      "leave_messages": true,
+      "economy_enabled": true,
+      "giveaways_enabled": true,
+      "gambling_enabled": true
+    }
+  }
+}
