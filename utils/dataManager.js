@@ -269,15 +269,7 @@ class DataManager {
     return this.bankManager.applyInterest(interestRate);
   }
 
-  /**
-   * Apply bank interest for a single guild.
-   * Only users in that guild receive interest.
-   * @param {string} guildId
-   * @param {number} rate
-   * @returns {Promise<{ totalInterest: number, accountsWithInterest: number }>}
-   */
   async applyBankInterestForGuild(guildId, rate) {
-    // Load all users from the UserManager
     const allUsers = await this.userManager.getAllUsers();
     let totalInterest = 0;
     let accountsWithInterest = 0;
@@ -295,9 +287,7 @@ class DataManager {
       }
     }
 
-    // Persist updates via UserManager
     await this.userManager.saveAllUsers(allUsers);
-
     return { totalInterest, accountsWithInterest };
   }
 
@@ -405,6 +395,77 @@ class DataManager {
     } catch (error) {
       logger.logError(`Reloading ${dataType} data`, error);
       return false;
+    }
+  }
+
+  // ===== Nuke Methods =====
+
+  /**
+   * Clear all economy data for a guild (preserving levels/achievements)
+   * @param {string} guildId
+   */
+  async clearEconomyData(guildId) {
+    // Clear user economy data
+    await this.clearUserEconomyData(guildId);
+
+    // Clear marketplace listings
+    await this.clearMarketplaceListings(guildId);
+
+    // Clear store items
+    await this.clearStoreItems(guildId);
+
+    // Persist all changes
+    await this.saveAll();
+
+    logger.info(`💥 Economy data cleared for guild ${guildId}`);
+  }
+
+  /**
+   * Clear user economy data (balances, inventories) but preserve levels/achievements
+   * @param {string} guildId
+   */
+  async clearUserEconomyData(guildId) {
+    const users = this.data.users || new Map();
+
+    for (const [userId, user] of users) {
+      if (user.guildId === guildId || (!user.guildId && guildId === 'default')) {
+        user.balance = 0;
+        user.bankBalance = 0;
+        user.totalEarned = 0;
+        user.inventory = {};
+        user.dailyStreak = 0;
+        user.lastDaily = 0;
+        user.lastWeekly = 0;
+        user.lastEarn = 0;
+        // preserve: level, experience, messageCount, reactionCount, voiceTimeTotal, achievements, badges, bio, links, referrals
+        await this.userManager.updateUser(userId, user);
+      }
+    }
+  }
+
+  /**
+   * Clear all marketplace listings for a guild
+   * @param {string} guildId
+   */
+  async clearMarketplaceListings(guildId) {
+    const listings = this.data.listings || new Map();
+    for (const [id, listing] of listings) {
+      if (listing.guildId === guildId || (!listing.guildId && guildId === 'default')) {
+        listings.delete(id);
+      }
+    }
+  }
+
+  /**
+   * Clear all store items for a guild
+   * @param {string} guildId
+   */
+  async clearStoreItems(guildId) {
+    const items = this.data.items || new Map();
+    for (const [id, item] of items) {
+      if (item.guildId === guildId || (!item.guildId && guildId === 'default')) {
+        items.delete(id);
+      }
     }
   }
 

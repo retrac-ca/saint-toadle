@@ -14,7 +14,7 @@ module.exports = {
 
     // Check if economy is enabled
     if (!configManager.isFeatureEnabled(guildId, 'economy_enabled')) {
-      return message.channel.send('❌ Economy features are disabled in this server.');
+      return message.reply('❌ Economy features are disabled in this server.');
     }
 
     // Get target user (mention or message author)
@@ -23,7 +23,7 @@ module.exports = {
 
     try {
       // Get user data
-      const user = dataManager.getUser(userId);
+      const user = await dataManager.getUser(userId, guildId);
       const balance = user.balance || 0;
       const bankBalance = user.bankBalance || 0;
       const totalEarned = user.totalEarned || 0;
@@ -35,17 +35,18 @@ module.exports = {
         .setThumbnail(targetUser.displayAvatarURL({ dynamic: true }))
         .addFields(
           { name: '💵 Wallet', value: `${balance.toLocaleString()} coins`, inline: true },
-          { name: '🏦 Bank', value: `${bankBalance.toLocaleString()} coins`, inline: true },
+          { name: '🏦 Bank',  value: `${bankBalance.toLocaleString()} coins`, inline: true },
           { name: '💎 Total', value: `${(balance + bankBalance).toLocaleString()} coins`, inline: true },
           { name: '📈 Total Earned', value: `${totalEarned.toLocaleString()} coins`, inline: false }
         )
         .setTimestamp();
 
-      await message.channel.send({ embeds: [embed] });
+      // Reply with the embed
+      return message.reply({ embeds: [embed] });
 
     } catch (error) {
       console.error('Error in balance command:', error);
-      await message.channel.send('❌ An error occurred while checking the balance.');
+      return message.reply('❌ An error occurred while checking the balance.');
     }
   }
 };
