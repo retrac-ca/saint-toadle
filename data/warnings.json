@@ -15,6 +15,21 @@
         }
       ],
       "totalWarnings": 1
+    },
+    "261330903731666945": {
+      "warnings": [
+        {
+          "id": "1759976903762",
+          "reason": "being too cool",
+          "moderator": {
+            "id": "172655374736818176",
+            "username": "toadle"
+          },
+          "timestamp": "2025-10-09T02:28:23.762Z",
+          "guild": "826291664053731358"
+        }
+      ],
+      "totalWarnings": 1
     }
   }
 }

@@ -1,6 +1,7 @@
 require('dotenv').config();
 
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
+const cron = require('node-cron');
 
 const logger = require('./utils/logger');
 const dataManager = require('./utils/dataManager');
@@ -10,6 +11,8 @@ const commandHandler = require('./handlers/commandHandler');
 const { setupDailyInterestTask } = require('./utils/interestScheduler');
 const giveawayManager = require('./utils/managers/giveawayManager');
 const configManager = require('./utils/managers/configManager');
+
+const days = require('./data/international_days.json');
 
 const client = new Client({
   intents: [
@@ -49,29 +52,39 @@ client.once('clientReady', async () => {
     await dataManager.initialize();
     logger.info('💾 Data manager initialized');
 
-    // Initialize configuration manager
-    try {
-      await configManager.loadConfigs();
-      logger.info('⚙️ Configuration manager initialized');
-    } catch (error) {
-      logger.error('Failed to initialize configuration manager:', error);
-    }
+    // Load guild configs
+    await configManager.loadConfigs();
+    logger.info('⚙️ Configuration manager initialized');
 
     // Initialize invite tracker
     await inviteTracker.initialize(client);
     logger.info('🎯 Invite tracker initialized');
 
-    // Set bot activity
-    client.user.setActivity(`${config.prefix}help for commands`, { type: 'LISTENING' });
-
-    // Hand off client to giveawayManager for scheduled endings
-    giveawayManager.setClient(client);
-
-    // Register all event handlers (including interactionCreate for giveaways)
-    eventHandler.initializeEvents(client);
-
-    // Schedule daily interest notifications
+    // Schedule daily interest
     setupDailyInterestTask(client);
+
+    // Schedule daily international-day reminders at 09:00
+    cron.schedule('0 9 * * *', () => {
+      const today = new Date().toISOString().slice(5, 10); // "MM-DD"
+      const matches = days.filter(d => d.date === today);
+      if (!matches.length) return;
+      const guilds = client.guilds.cache;
+      guilds.forEach(guild => {
+        const gc = configManager.getConfig(guild.id);
+        const channelId = gc.reminderChannelId;
+        if (!channelId) return;
+        const ch = guild.channels.cache.get(channelId);
+        if (!ch?.send) return;
+        matches.forEach(d =>
+          ch.send(`🌐 Today is **${d.name}**!`)
+        );
+      });
+    });
+
+    // Set bot activity and initialize events
+    client.user.setActivity(`${config.prefix}help for commands`, { type: 'LISTENING' });
+    giveawayManager.setClient(client);
+    eventHandler.initializeEvents(client);
 
     logger.info('✅ All systems initialized successfully!');
   } catch (error) {
@@ -80,39 +93,27 @@ client.once('clientReady', async () => {
   }
 });
 
-// Message command handler with configurable prefix support
-client.on('messageCreate', async (message) => {
+// Message commands
+client.on('messageCreate', async message => {
   try {
     if (message.author.bot || !message.guild) return;
-
     const guildId = message.guild.id;
     const guildPrefix = configManager.getPrefix(guildId);
-
     if (!message.content.startsWith(guildPrefix) && !message.content.startsWith(config.prefix)) return;
-
-    const usedPrefix = message.content.startsWith(guildPrefix) ? guildPrefix : config.prefix;
-    message.usedPrefix = usedPrefix;
-
+    message.usedPrefix = message.content.startsWith(guildPrefix) ? guildPrefix : config.prefix;
     await commandHandler.processCommand(client, message);
   } catch (error) {
     logger.error('❌ Error processing message:', error);
   }
 });
 
-// Guild member join with configurable welcome messages
-client.on('guildMemberAdd', async (member) => {
+// Member join
+client.on('guildMemberAdd', async member => {
   try {
-    logger.info(`👋 New member joined: ${member.user.tag} (${member.user.id})`);
-
-    const guildConfig = configManager.getConfig(member.guild.id);
-    if (!guildConfig.features.welcome_messages) {
-      logger.debug(`Welcome messages disabled for guild ${member.guild.name}`);
-      return;
-    }
-
-    const channelId = guildConfig.channels.welcome_channel || WELCOME_CHANNEL_ID;
-    if (channelId) {
-      const ch = member.guild.channels.cache.get(channelId);
+    const gc = configManager.getConfig(member.guild.id);
+    if (gc.features.welcomeMessages) {
+      const cid = gc.channels.welcomeChannel || WELCOME_CHANNEL_ID;
+      const ch = member.guild.channels.cache.get(cid);
       if (ch?.send) {
         const embed = {
           color: 0x00FF00,
@@ -129,28 +130,23 @@ client.on('guildMemberAdd', async (member) => {
         await ch.send({ embeds: [embed] });
       }
     }
-
-    await sendReferralPrompt(member);
-    await inviteTracker.handleMemberJoin(member);
+    // Referral prompt + invite handling
+    await Promise.all([
+      commandHandler.sendReferralPrompt?.(member),
+      inviteTracker.handleMemberJoin(member)
+    ]);
   } catch (error) {
-    logger.error('❌ Error handling member join:', error);
+    logger.error('❌ Error on member join:', error);
   }
 });
 
-// Guild member leave with configurable leave messages
-client.on('guildMemberRemove', async (member) => {
+// Member leave
+client.on('guildMemberRemove', async member => {
   try {
-    logger.info(`👋 Member left: ${member.user.tag} (${member.user.id})`);
-
-    const guildConfig = configManager.getConfig(member.guild.id);
-    if (!guildConfig.features.leave_messages) {
-      logger.debug(`Leave messages disabled for guild ${member.guild.name}`);
-      return;
-    }
-
-    const channelId = guildConfig.channels.leave_channel || LEAVE_CHANNEL_ID;
-    if (channelId) {
-      const ch = member.guild.channels.cache.get(channelId);
+    const gc = configManager.getConfig(member.guild.id);
+    if (gc.features.leaveMessages) {
+      const cid = gc.channels.leaveChannel || LEAVE_CHANNEL_ID;
+      const ch = member.guild.channels.cache.get(cid);
       if (ch?.send) {
         const embed = {
           color: 0xFF0000,
@@ -168,78 +164,31 @@ client.on('guildMemberRemove', async (member) => {
       }
     }
   } catch (error) {
-    logger.error('❌ Error handling member leave:', error);
+    logger.error('❌ Error on member leave:', error);
   }
 });
 
-// Invite create/delete tracking
-client.on('inviteCreate', async (invite) => {
-  try {
-    logger.debug(`📨 Invite created: ${invite.code} by ${invite.inviter?.tag}`);
-    await inviteTracker.handleInviteCreate(invite);
-  } catch (error) {
-    logger.error('❌ Error handling invite creation:', error);
-  }
-});
-client.on('inviteDelete', async (invite) => {
-  try {
-    logger.debug(`🗑️ Invite deleted: ${invite.code}`);
-    await inviteTracker.handleInviteDelete(invite);
-  } catch (error) {
-    logger.error('❌ Error handling invite deletion:', error);
-  }
-});
+// Invite tracking
+client.on('inviteCreate', invite => inviteTracker.handleInviteCreate(invite).catch(e => logger.error('Error inviteCreate:', e)));
+client.on('inviteDelete', invite => inviteTracker.handleInviteDelete(invite).catch(e => logger.error('Error inviteDelete:', e)));
 
-async function sendReferralPrompt(member) {
-  try {
-    const prefix = configManager.getPrefix(member.guild.id);
-    const msg = `🎉 **Welcome to ${member.guild.name}!**\n\n` +
-                `Use \`${prefix}claiminvite <invite_code>\` if you have one.\n` +
-                `Use \`${prefix}help\` for commands!`;
-    await member.send(msg);
-    logger.debug(`📧 Referral prompt sent to ${member.user.tag}`);
-  } catch {
-    const ch = member.guild.systemChannel;
-    if (ch) {
-      const prefix = configManager.getPrefix(member.guild.id);
-      await ch.send(`👋 Welcome ${member}!\nUse \`${prefix}help\` for commands!`);
-    }
-  }
-}
-
-// Error/warning logging
+// Error handling
 client.on('error', e => logger.error('❌ Discord client error:', e));
 client.on('warn', w => logger.warn('⚠️ Discord client warning:', w));
-
-// Graceful shutdown
-process.on('SIGINT', async () => {
-  logger.info('🛑 Shutting down gracefully...');
-  await dataManager.saveAll();
-  client.destroy();
-  process.exit(0);
-});
+process.on('SIGINT', async () => { await dataManager.saveAll(); client.destroy(); process.exit(0); });
 process.on('uncaughtException', e => { logger.error('💥 Uncaught Exception:', e); process.exit(1); });
 process.on('unhandledRejection', (r,p) => { logger.error('💥 Unhandled Rejection at:', p, 'reason:', r); });
 
-// Start the bot
-function startBot() {
-  if (!config.token) {
-    logger.error('❌ No Discord token provided! Set DISCORD_TOKEN in .env');
-    process.exit(1);
-  }
-  logger.info('🚀 Starting Saint Toadle Discord Bot...');
-  logger.info(`🔧 Debug Mode: ${config.debugMode?'ON':'OFF'}`);
-  client.login(config.token).catch(e => { logger.error('❌ Failed to login:', e); process.exit(1); });
-}
-
-// Load commands then launch
+// Start bot
 (async () => {
   try {
     await commandHandler.loadCommands(client);
     logger.info('📚 Commands loaded successfully');
-    startBot();
+    if (!config.token) throw new Error('No DISCORD_TOKEN');
+    logger.info(`🚀 Starting Saint Toadle Discord Bot...`);
+    client.login(config.token);
   } catch (error) {
-    logger.error('❌ Failed to initialize bot:', error);
+    logger.error('❌ Bot startup failed:', error);
     process.exit(1);
   }
 })();

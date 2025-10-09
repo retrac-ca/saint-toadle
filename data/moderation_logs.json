@@ -37,6 +37,24 @@
       "timestamp": "2025-10-05T16:29:53.327Z",
       "guild": "826291664053731358",
       "warningId": "1759681792381"
+    },
+    {
+      "id": "1759976904735",
+      "action": "WARNING",
+      "target": {
+        "id": "261330903731666945",
+        "username": "android42",
+        "tag": "android42"
+      },
+      "moderator": {
+        "id": "172655374736818176",
+        "username": "toadle",
+        "tag": "toadle"
+      },
+      "reason": "being too cool",
+      "timestamp": "2025-10-09T02:28:24.735Z",
+      "guild": "826291664053731358",
+      "warningId": "1759976903762"
     }
   ]
 }

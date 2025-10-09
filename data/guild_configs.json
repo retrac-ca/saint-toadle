@@ -34,7 +34,8 @@
       "welcome_channel": null,
       "leave_channel": null,
       "logs_channel": null,
-      "interest_notification": null
+      "interest_notification": null,
+      "reminderChannelId": "1000088676979707914"
     },
     "roles": {
       "admin_role": "Admin",

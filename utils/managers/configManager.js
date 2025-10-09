@@ -33,7 +33,8 @@ class ConfigManager {
                 welcome_channel: null,
                 leave_channel: null,
                 logs_channel: null,
-                interest_notification: null
+                interest_notification: null,
+                reminderChannelId: null      // Added for International Day reminders
             },
             roles: {
                 admin_role: 'Admin',
@@ -123,20 +124,20 @@ class ConfigManager {
 
     validateConfigValue(path, value) {
         const validations = {
-            'prefix': (v) => typeof v === 'string' && v.length <= 3 && v.length > 0,
-            'economy.earn_range.min': (v) => typeof v === 'number' && v >= 1 && v <= 1000,
-            'economy.earn_range.max': (v) => typeof v === 'number' && v >= 1 && v <= 1000,
-            'economy.crime_settings.success_chance': (v) => typeof v === 'number' && v >= 0 && v <= 1,
-            'economy.crime_settings.reward_range.min': (v) => typeof v === 'number' && v >= 1,
-            'economy.crime_settings.reward_range.max': (v) => typeof v === 'number' && v >= 1,
-            'economy.crime_settings.fine_range.min': (v) => typeof v === 'number' && v >= 1,
-            'economy.crime_settings.fine_range.max': (v) => typeof v === 'number' && v >= 1,
-            'economy.invest_settings.fail_chance': (v) => typeof v === 'number' && v >= 0 && v <= 1,
-            'economy.daily_bonus.min': (v) => typeof v === 'number' && v >= 1,
-            'economy.daily_bonus.max': (v) => typeof v === 'number' && v >= 1,
-            'economy.bank_interest_rate': (v) => typeof v === 'number' && v >= 0 && v <= 1,
-            'roles.admin_role': (v) => typeof v === 'string' && v.length <= 100,
-            'roles.moderator_role': (v) => typeof v === 'string' && v.length <= 100
+            'prefix': v => typeof v === 'string' && v.length <= 3 && v.length > 0,
+            'economy.earn_range.min': v => typeof v === 'number' && v >= 1 && v <= 1000,
+            'economy.earn_range.max': v => typeof v === 'number' && v >= 1 && v <= 1000,
+            'economy.crime_settings.success_chance': v => typeof v === 'number' && v >= 0 && v <= 1,
+            'economy.crime_settings.reward_range.min': v => typeof v === 'number' && v >= 1,
+            'economy.crime_settings.reward_range.max': v => typeof v === 'number' && v >= 1,
+            'economy.crime_settings.fine_range.min': v => typeof v === 'number' && v >= 1,
+            'economy.crime_settings.fine_range.max': v => typeof v === 'number' && v >= 1,
+            'economy.invest_settings.fail_chance': v => typeof v === 'number' && v >= 0 && v <= 1,
+            'economy.daily_bonus.min': v => typeof v === 'number' && v >= 1,
+            'economy.daily_bonus.max': v => typeof v === 'number' && v >= 1,
+            'economy.bank_interest_rate': v => typeof v === 'number' && v >= 0 && v <= 1,
+            'roles.admin_role': v => typeof v === 'string' && v.length <= 100,
+            'roles.moderator_role': v => typeof v === 'string' && v.length <= 100
         };
 
         const validator = validations[path];
@@ -174,6 +175,16 @@ class ConfigManager {
 
     getModeratorRole(guildId) {
         return this.getRoleConfig(guildId).moderator_role;
+    }
+
+    // New method to set reminder channel
+    setReminderChannel(guildId, channelId) {
+        const config = this.getConfig(guildId);
+        if (!config.channels) {
+            config.channels = {};
+        }
+        config.channels.reminderChannelId = channelId;
+        this.saveConfigs();
     }
 }
 

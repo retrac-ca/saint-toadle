@@ -19,8 +19,13 @@ async function applyInterestDaily() {
     for (const guild of guilds.values()) {
       const guildId = guild.id;
       const guildConfig = configManager.getConfig(guildId);
-      const interestRate = guildConfig.economy.bank_interest_rate;
-      const notificationChannelId = guildConfig.channels.interest_notification;
+      const interestRate = guildConfig?.economy?.bank_interest_rate ?? 0.01;
+
+      // Accept old and new channel config naming for notification override
+      let notificationChannelId =
+        guildConfig?.channels?.interest_notification ||
+        guildConfig?.channels?.reminderChannelId ||
+        guildConfig?.channels?.logs_channel;
 
       // Apply interest for this guild only
       const result = await dataManager.applyBankInterestForGuild(guildId, interestRate);
@@ -39,6 +44,10 @@ async function applyInterestDaily() {
             await channel.send(
               `💰 Daily bank interest applied: ${result.totalInterest} coins added to ${result.accountsWithInterest} users (${Math.round(interestRate * 100)}% rate).`
             );
+          } else {
+            console.warn(
+              `⚠️ Fetched object for channel ${notificationChannelId} in ${guild.name} is not a text channel`
+            );
           }
         } catch (sendError) {
           console.warn(
@@ -50,7 +59,6 @@ async function applyInterestDaily() {
 
     await dataManager.saveAll();
     console.log(`Total interest applied: ${totalInterestApplied} coins to ${totalAccountsProcessed} accounts across ${guilds.size} guilds.`);
-    
   } catch (error) {
     console.error('Failed to apply daily interest:', error);
   }

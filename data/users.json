@@ -1,9 +1,9 @@
 {
   "172655374736818176": {
-    "balance": 1585,
-    "totalEarned": 13241,
+    "balance": 85,
+    "totalEarned": 13598,
     "referrals": 3,
-    "lastEarn": 1759755049458,
+    "lastEarn": 1760025296972,
     "joinedAt": 1758904903843,
     "lastDaily": 1759681264042,
     "lastWeekly": 1759681266505,
@@ -12,13 +12,14 @@
       "diamond": 49,
       "AK47": 1
     },
-    "bankBalance": 10769,
+    "bankBalance": 12614,
     "lastBankActivity": 1759711616326,
     "bio": "The Don",
     "links": {},
     "badges": [
       "investor",
-      "first-referral"
+      "first-referral",
+      "crime-master"
     ],
     "dailyStreak": 0,
     "guildId": "826291664053731358"
