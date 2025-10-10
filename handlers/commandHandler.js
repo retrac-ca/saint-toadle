@@ -117,6 +117,8 @@ class CommandHandler {
                 return;
             }
 
+            logger.debug(`🎯 Processing command: ${commandName} from ${message.author.tag}`);
+
             if (!this.checkPermissions(command, message)) {
                 await message.channel.send('❌ You do not have permission to use this command.');
                 logger.logCommand(message, commandName, 'no_permission');
@@ -130,6 +132,7 @@ class CommandHandler {
                 return;
             }
 
+            // Execute command with proper parameter order
             await command.execute(message, args, client);
 
             // Set cooldown

@@ -1,18 +1,14 @@
 {
   "172655374736818176": {
-    "balance": 85,
-    "totalEarned": 13598,
+    "balance": 0,
+    "totalEarned": 0,
     "referrals": 3,
-    "lastEarn": 1760025296972,
+    "lastEarn": 0,
     "joinedAt": 1758904903843,
-    "lastDaily": 1759681264042,
-    "lastWeekly": 1759681266505,
-    "inventory": {
-      "potion": 1,
-      "diamond": 49,
-      "AK47": 1
-    },
-    "bankBalance": 13123,
+    "lastDaily": 0,
+    "lastWeekly": 0,
+    "inventory": {},
+    "bankBalance": 0,
     "lastBankActivity": 1759711616326,
     "bio": "The Don",
     "links": {},
@@ -25,10 +21,10 @@
     "guildId": "826291664053731358"
   },
   "261330903731666945": {
-    "balance": 10,
-    "totalEarned": 10,
+    "balance": 0,
+    "totalEarned": 0,
     "referrals": 0,
-    "lastEarn": null,
+    "lastEarn": 0,
     "joinedAt": 1758904929352,
     "inventory": {},
     "bankBalance": 0,
@@ -37,30 +33,32 @@
     "links": {},
     "badges": [],
     "dailyStreak": 0,
-    "guildId": "826291664053731358"
+    "guildId": "826291664053731358",
+    "lastDaily": 0,
+    "lastWeekly": 0
   },
   "865579950857388063": {
     "balance": 0,
     "totalEarned": 0,
     "referrals": 0,
-    "lastEarn": null,
+    "lastEarn": 0,
     "joinedAt": 1758905564865,
-    "inventory": {
-      "diamond": 1
-    },
+    "inventory": {},
     "bankBalance": 0,
     "lastBankActivity": null,
     "bio": "",
     "links": {},
     "badges": [],
     "dailyStreak": 0,
-    "guildId": "826291664053731358"
+    "guildId": "826291664053731358",
+    "lastDaily": 0,
+    "lastWeekly": 0
   },
   "323521232400023553": {
-    "balance": 122,
-    "totalEarned": 184,
+    "balance": 0,
+    "totalEarned": 0,
     "referrals": 0,
-    "lastEarn": 1759766689026,
+    "lastEarn": 0,
     "joinedAt": 1759681538507,
     "inventory": {},
     "bankBalance": 0,
@@ -71,7 +69,9 @@
       "crime-master"
     ],
     "dailyStreak": 0,
-    "guildId": "826291664053731358"
+    "guildId": "826291664053731358",
+    "lastDaily": 0,
+    "lastWeekly": 0
   },
   "700990108735635498": {
     "balance": 4,

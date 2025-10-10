@@ -73,6 +73,7 @@ const eventHandler = new EventHandler();
 // Register built-in button interaction handler for giveaways
 eventHandler.registerEvent('interactionCreate', async (interaction) => {
     if (!interaction.isButton()) return;
+    
     const [action, , giveawayId] = interaction.customId.split('_');
     if (action !== 'enter') return;
 

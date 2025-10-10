@@ -8,9 +8,9 @@ const dataManager = require('./utils/dataManager');
 const inviteTracker = require('./utils/inviteTracker');
 const eventHandler = require('./handlers/eventHandler');
 const commandHandler = require('./handlers/commandHandler');
+const configManager = require('./utils/managers/configManager');
 const { setupDailyInterestTask } = require('./utils/interestScheduler');
 const giveawayManager = require('./utils/managers/giveawayManager');
-const configManager = require('./utils/managers/configManager');
 
 const days = require('./data/international_days.json');
 
@@ -41,6 +41,37 @@ client.config = config;
 const WELCOME_CHANNEL_ID = process.env.WELCOME_CHANNEL_ID;
 const LEAVE_CHANNEL_ID = process.env.LEAVE_CHANNEL_ID;
 
+// Register the messageCreate event handler
+eventHandler.registerEvent('messageCreate', async (message) => {
+  // Ignore bot messages
+  if (message.author.bot) return;
+
+  // Check if message starts with prefix
+  let usedPrefix = null;
+  
+  // Check guild-specific prefix first
+  if (message.guild) {
+    const guildConfig = configManager.getConfig(message.guild.id);
+    if (guildConfig && guildConfig.prefix && message.content.startsWith(guildConfig.prefix)) {
+      usedPrefix = guildConfig.prefix;
+    }
+  }
+  
+  // Fallback to default prefix
+  if (!usedPrefix && message.content.startsWith(config.prefix)) {
+    usedPrefix = config.prefix;
+  }
+  
+  // If no prefix matched, ignore message
+  if (!usedPrefix) return;
+  
+  // Store the used prefix for command handler
+  message.usedPrefix = usedPrefix;
+  
+  // Process the command
+  await commandHandler.processCommand(client, message);
+});
+
 // When client is ready
 client.once('ready', async () => {
   try {
@@ -59,6 +90,9 @@ client.once('ready', async () => {
     // Initialize invite tracker
     await inviteTracker.initialize(client);
     logger.info('🎯 Invite tracker initialized');
+
+    // Initialize event handlers (must be done after data manager is ready)
+    eventHandler.initializeEvents(client);
 
     // Schedule daily interest
     setupDailyInterestTask(client);
@@ -84,9 +118,6 @@ client.once('ready', async () => {
     // Give giveawayManager access to client
     giveawayManager.setClient(client);
 
-    // Initialize event handlers (messageCreate, reaction, voice, etc.)
-    eventHandler.initializeEvents(client);
-
     logger.info('✅ All systems initialized successfully!');
   } catch (error) {
     logger.error('❌ Error during bot initialization:', error);
@@ -100,7 +131,9 @@ client.once('ready', async () => {
     // Load commands once
     await commandHandler.loadCommands(client);
     logger.info('📚 Commands loaded successfully');
+    
     if (!config.token) throw new Error('No DISCORD_TOKEN');
+    
     logger.info('🚀 Starting Saint Toadle Discord Bot...');
     await client.login(config.token);
   } catch (error) {
