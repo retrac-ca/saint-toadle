@@ -26,17 +26,17 @@ class DataManager {
   constructor() {
     // Initialize storage handler
     this.storage = new DataStorage();
-    
+
     // Data structures will be loaded from storage
     this.data = {};
-    
+
     // Specialized managers (initialized after data loading)
     this.userManager = null;
     this.bankManager = null;
     this.marketplaceManager = null;
     this.referralManager = null;
     this.statisticsManager = null;
-    
+
     // Auto-save interval (every 5 minutes)
     this.autoSaveInterval = 5 * 60 * 1000;
     this.autoSaveTimer = null;
@@ -49,16 +49,16 @@ class DataManager {
     try {
       // Initialize storage
       await this.storage.initialize();
-      
+
       // Load all data from files
       this.data = await this.storage.loadAll();
-      
+
       // Initialize specialized managers with loaded data
       this.initializeManagers();
-      
+
       // Start auto-save timer
       this.startAutoSave();
-      
+
       logger.info('💾 Modular Data Manager initialized successfully');
     } catch (error) {
       logger.logError('Data Manager initialization', error);
@@ -72,16 +72,16 @@ class DataManager {
   initializeManagers() {
     // User manager handles user data, balances, and inventory
     this.userManager = new UserManager(this.data.users, this.data.items);
-    
-    // Bank manager handles banking operations
+
+    // Bank manager handles banking operations (now supports guild filter)
     this.bankManager = new BankManager(this.data.users);
-    
+
     // Marketplace manager handles item listings and purchases
     this.marketplaceManager = new MarketplaceManager(this.data.listings, this.userManager);
-    
+
     // Referral manager handles invite tracking and claims
     this.referralManager = new ReferralManager(this.data.invites, this.data.claimed, this.userManager);
-    
+
     // Statistics manager handles analytics and reporting
     this.statisticsManager = new StatisticsManager(
       this.data.users,
@@ -89,7 +89,7 @@ class DataManager {
       this.data.claimed,
       this.data.listings
     );
-    
+
     logger.debug('🔧 All specialized managers initialized');
   }
 
@@ -114,7 +114,7 @@ class DataManager {
     if (this.autoSaveTimer) {
       clearInterval(this.autoSaveTimer);
     }
-    
+
     this.autoSaveTimer = setInterval(async () => {
       try {
         await this.saveAll();
@@ -123,7 +123,7 @@ class DataManager {
         logger.logError('Auto-save', error);
       }
     }, this.autoSaveInterval);
-    
+
     logger.debug('⏰ Auto-save timer started');
   }
 
@@ -138,7 +138,7 @@ class DataManager {
     }
   }
 
-  // ===== USER METHODS (delegated to UserManager) =====
+  // ===== USER METHODS =====
 
   getUser(userId) {
     return this.userManager.getUser(userId);
@@ -188,70 +188,7 @@ class DataManager {
     return this.userManager.getLeaderboard(limit);
   }
 
-  // ===== PROFILE EXTENSIONS =====
-
-  async setBio(userId, text) {
-    const user = (await this.userManager.getUser(userId)) || {};
-    user.bio = text;
-    await this.userManager.updateUser(userId, user);
-    await this.saveAll();
-  }
-
-  async addLink(userId, platform, url) {
-    const user = (await this.userManager.getUser(userId)) || {};
-    user.links = user.links || {};
-    user.links[platform] = url;
-    await this.userManager.updateUser(userId, user);
-    await this.saveAll();
-  }
-
-  async removeLink(userId, platform) {
-    const user = (await this.userManager.getUser(userId)) || {};
-    if (user.links) {
-      delete user.links[platform];
-      await this.userManager.updateUser(userId, user);
-      await this.saveAll();
-    }
-  }
-
-  async awardBadge(userId, badgeId) {
-    const user = (await this.userManager.getUser(userId)) || {};
-    user.badges = user.badges || [];
-    if (!user.badges.includes(badgeId)) {
-      user.badges.push(badgeId);
-      await this.userManager.updateUser(userId, user);
-      await this.saveAll();
-    }
-  }
-
-  async revokeBadge(userId, badgeId) {
-    const user = (await this.userManager.getUser(userId)) || {};
-    if (user.badges) {
-      user.badges = user.badges.filter(b => b !== badgeId);
-      await this.userManager.updateUser(userId, user);
-      await this.saveAll();
-    }
-  }
-
-  async addToEarnedTotal(userId, amount) {
-    const user = (await this.userManager.getUser(userId)) || {};
-    user.totalEarned = (user.totalEarned || 0) + amount;
-    await this.userManager.updateUser(userId, user);
-    await this.saveAll();
-  }
-
-  async updateDailyStreak(userId, claimedToday, claimedYesterday) {
-    const user = (await this.userManager.getUser(userId)) || {};
-    if (claimedToday && claimedYesterday) {
-      user.dailyStreak = (user.dailyStreak || 0) + 1;
-    } else if (claimedToday) {
-      user.dailyStreak = 1;
-    }
-    await this.userManager.updateUser(userId, user);
-    await this.saveAll();
-  }
-
-  // ===== BANK METHODS (delegated to BankManager) =====
+  // ===== BANK METHODS =====
 
   getBankBalance(userId) {
     return this.bankManager.getBankBalance(userId);
@@ -265,36 +202,20 @@ class DataManager {
     return this.bankManager.withdraw(userId, amount);
   }
 
-  applyBankInterest(interestRate = 0.01) {
-    return this.bankManager.applyInterest(interestRate);
+  /**
+   * Apply bank interest to all users or filter by guild.
+   * @param {number} rate - interest rate
+   * @param {string|null} guildId - optional guild filter
+   * @returns {{totalInterest:number,accountsWithInterest:number}}
+   */
+  applyBankInterest(rate = 0.01, guildId = null) {
+    return this.bankManager.applyInterest(rate, guildId);
   }
 
-  async applyBankInterestForGuild(guildId, rate) {
-    const allUsers = await this.userManager.getAllUsers();
-    let totalInterest = 0;
-    let accountsWithInterest = 0;
+  // ===== MARKETPLACE METHODS =====
 
-    for (const [userId, userData] of Object.entries(allUsers)) {
-      if (userData.guildId !== guildId) continue;
-      const balance = userData.bankBalance || 0;
-      if (balance <= 0) continue;
-
-      const interest = Math.floor(balance * rate);
-      if (interest > 0) {
-        userData.bankBalance += interest;
-        totalInterest += interest;
-        accountsWithInterest++;
-      }
-    }
-
-    await this.userManager.saveAllUsers(allUsers);
-    return { totalInterest, accountsWithInterest };
-  }
-
-  // ===== MARKETPLACE METHODS (delegated to MarketplaceManager) =====
-
-  createListing(sellerId, item, quantity, price) {
-    return this.marketplaceManager.createListing(sellerId, item, quantity, price);
+  createListing(sellerId, guildId, item, quantity, price) {
+    return this.marketplaceManager.createListing(sellerId, guildId, item, quantity, price);
   }
 
   removeListing(listingId) {
@@ -305,15 +226,15 @@ class DataManager {
     return this.marketplaceManager.getListing(listingId);
   }
 
-  getListingsPaged(page = 1, perPage = 10, filterItem = null, filterSeller = null) {
-    return this.marketplaceManager.getListingsPaged(page, perPage, filterItem, filterSeller);
+  getListingsPaged(guildId, page = 1, perPage = 10) {
+    return this.marketplaceManager.getListingsPaged(guildId, page, perPage);
   }
 
-  purchaseMarketplaceItem(buyerId, listingId, quantity) {
-    return this.marketplaceManager.purchaseItem(buyerId, listingId, quantity);
+  purchaseMarketplaceItem(buyerId, guildId, listingId, quantity) {
+    return this.marketplaceManager.purchaseItem(buyerId, guildId, listingId, quantity);
   }
 
-  // ===== REFERRAL METHODS (delegated to ReferralManager) =====
+  // ===== REFERRAL METHODS =====
 
   registerInvite(inviteCode, inviterUserId) {
     return this.referralManager.registerInvite(inviteCode, inviterUserId);
@@ -343,7 +264,7 @@ class DataManager {
     return this.referralManager.processReferralClaim(inviteCode, claimerUserId);
   }
 
-  // ===== STATISTICS METHODS (delegated to StatisticsManager) =====
+  // ===== STATISTICS METHODS =====
 
   getStatistics() {
     return this.statisticsManager.getStatistics();
@@ -361,74 +282,20 @@ class DataManager {
     return this.statisticsManager.getMarketplaceItemStats();
   }
 
-  // ===== STORAGE MANAGEMENT METHODS =====
+  // ===== NUKE METHODS =====
 
-  async createBackup() {
-    return await this.storage.createAllBackups();
-  }
-
-  async cleanOldBackups(maxAge = 30, maxCount = 10) {
-    return await this.storage.cleanOldBackups(maxAge, maxCount);
-  }
-
-  async getStorageStats() {
-    return await this.storage.getStorageStats();
-  }
-
-  async validateDataFiles() {
-    return await this.storage.validateAllDataFiles();
-  }
-
-  async saveDataType(dataType) {
-    if (this.data[dataType]) {
-      return await this.storage.saveData(dataType, this.data[dataType]);
-    }
-    return false;
-  }
-
-  async reloadDataType(dataType) {
-    try {
-      this.data[dataType] = await this.storage.loadData(dataType);
-      this.initializeManagers();
-      logger.debug(`🔄 Reloaded ${dataType} data`);
-      return true;
-    } catch (error) {
-      logger.logError(`Reloading ${dataType} data`, error);
-      return false;
-    }
-  }
-
-  // ===== Nuke Methods =====
-
-  /**
-   * Clear all economy data for a guild (preserving levels/achievements)
-   * @param {string} guildId
-   */
   async clearEconomyData(guildId) {
-    // Clear user economy data
     await this.clearUserEconomyData(guildId);
-
-    // Clear marketplace listings
     await this.clearMarketplaceListings(guildId);
-
-    // Clear store items
     await this.clearStoreItems(guildId);
-
-    // Persist all changes
     await this.saveAll();
-
     logger.info(`💥 Economy data cleared for guild ${guildId}`);
   }
 
-  /**
-   * Clear user economy data (balances, inventories) but preserve levels/achievements
-   * @param {string} guildId
-   */
   async clearUserEconomyData(guildId) {
     const users = this.data.users || new Map();
-
     for (const [userId, user] of users) {
-      if (user.guildId === guildId || (!user.guildId && guildId === 'default')) {
+      if (user.guildId === guildId) {
         user.balance = 0;
         user.bankBalance = 0;
         user.totalEarned = 0;
@@ -437,39 +304,30 @@ class DataManager {
         user.lastDaily = 0;
         user.lastWeekly = 0;
         user.lastEarn = 0;
-        // preserve: level, experience, messageCount, reactionCount, voiceTimeTotal, achievements, badges, bio, links, referrals
         await this.userManager.updateUser(userId, user);
       }
     }
   }
 
-  /**
-   * Clear all marketplace listings for a guild
-   * @param {string} guildId
-   */
   async clearMarketplaceListings(guildId) {
     const listings = this.data.listings || new Map();
     for (const [id, listing] of listings) {
-      if (listing.guildId === guildId || (!listing.guildId && guildId === 'default')) {
+      if (listing.guildId === guildId) {
         listings.delete(id);
       }
     }
   }
 
-  /**
-   * Clear all store items for a guild
-   * @param {string} guildId
-   */
   async clearStoreItems(guildId) {
     const items = this.data.items || new Map();
     for (const [id, item] of items) {
-      if (item.guildId === guildId || (!item.guildId && guildId === 'default')) {
+      if (item.guildId === guildId) {
         items.delete(id);
       }
     }
   }
 
-  // ===== UTILITY METHODS =====
+  // ===== MISC =====
 
   getMemoryStats() {
     return {
@@ -483,7 +341,7 @@ class DataManager {
   }
 
   isInitialized() {
-    return !!(
+    return Boolean(
       this.userManager &&
       this.bankManager &&
       this.marketplaceManager &&

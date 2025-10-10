@@ -12,39 +12,34 @@ module.exports = {
       return message.reply('Usage: !listitem <item> <quantity> <price>');
     }
 
+    const guildId = message.guild.id;
     const userId = message.author.id;
     const item = args[0].toLowerCase();
-    const quantity = parseInt(args[1]);
-    const price = parseInt(args[2]);
+    const quantity = parseInt(args[1], 10);
+    const price = parseInt(args[2], 10);
 
     if (!dataManager.isValidItem(item)) {
-      return message.reply(`❌ The item "${item}" does not exist in the catalog.`);
+      return message.reply(`❌ Item "${item}" not found.`);
     }
-    if (isNaN(quantity) || quantity <= 0) {
-      return message.reply('❌ Please enter a valid positive number for quantity.');
-    }
-    if (isNaN(price) || price <= 0) {
-      return message.reply('❌ Please enter a valid positive number for price.');
+    if (quantity <= 0 || price <= 0) {
+      return message.reply('❌ Quantity and price must be positive numbers.');
     }
 
-    // Check user inventory
-    const userItemQty = dataManager.getUserItemQuantity(userId, item);
-    if (userItemQty < quantity) {
-      return message.reply(`❌ You only have ${userItemQty}x ${item}, which is less than the quantity you want to list.`);
+    const userQty = dataManager.getUserItemQuantity(userId, item);
+    if (userQty < quantity) {
+      return message.reply(`❌ You only have ${userQty}x ${item}.`);
     }
 
-    // Create the listing
-    const listing = dataManager.createListing(userId, item, quantity, price);
-
+    const listing = dataManager.createListing(userId, guildId, item, quantity, price);
     if (!listing) {
-      return message.reply('❌ Failed to create listing. Please try again.');
+      return message.reply('❌ Failed to create listing.');
     }
 
-    const itemInfo = dataManager.getItemInfo(item);
+    const info = dataManager.getItemInfo(item);
     const embed = new EmbedBuilder()
       .setTitle('Item Listed')
-      .setDescription(`You have successfully listed **${quantity}x ${itemInfo.name || item}** for **${price} coins** each.`)
-      .setColor('#00ff00')
+      .setDescription(`You listed **${quantity}x ${info.name || item}** for **${price} coins** each.`)
+      .setColor('Green')
       .setTimestamp();
 
     await message.reply({ embeds: [embed] });

@@ -22,27 +22,30 @@ async function applyInterestDaily() {
       const interestRate = guildConfig?.economy?.bank_interest_rate ?? 0.01;
 
       // Accept old and new channel config naming for notification override
-      let notificationChannelId =
+      const notificationChannelId =
         guildConfig?.channels?.interest_notification ||
         guildConfig?.channels?.reminderChannelId ||
         guildConfig?.channels?.logs_channel;
 
       // Apply interest for this guild only
-      const result = await dataManager.applyBankInterestForGuild(guildId, interestRate);
-      totalInterestApplied += result.totalInterest;
-      totalAccountsProcessed += result.accountsWithInterest;
+      const { totalInterest, accountsWithInterest } =
+        dataManager.applyBankInterest(interestRate, guildId);
+      totalInterestApplied += totalInterest;
+      totalAccountsProcessed += accountsWithInterest;
 
       console.log(
-        `Applied interest: ${result.totalInterest} coins to ${result.accountsWithInterest} accounts in ${guild.name}.`
+        `Applied interest: ${totalInterest} coins to ${accountsWithInterest} accounts in ${guild.name}.`
       );
 
       // Send notification to configured channel if set
-      if (botClient && notificationChannelId && result.accountsWithInterest > 0) {
+      if (botClient && notificationChannelId && accountsWithInterest > 0) {
         try {
           const channel = await botClient.channels.fetch(notificationChannelId);
           if (channel && typeof channel.send === 'function') {
             await channel.send(
-              `💰 Daily bank interest applied: ${result.totalInterest} coins added to ${result.accountsWithInterest} users (${Math.round(interestRate * 100)}% rate).`
+              `💰 Daily bank interest applied: ${totalInterest} coins added to ${accountsWithInterest} users (${Math.round(
+                interestRate * 100
+              )}% rate).`
             );
           } else {
             console.warn(
@@ -51,14 +54,17 @@ async function applyInterestDaily() {
           }
         } catch (sendError) {
           console.warn(
-            `⚠️ Could not send interest notification in channel ${notificationChannelId} for guild ${guild.name}: ${sendError.code || sendError.message}`
+            `⚠️ Could not send interest notification in channel ${notificationChannelId} for guild ${guild.name}: ${sendError.code ||
+              sendError.message}`
           );
         }
       }
     }
 
     await dataManager.saveAll();
-    console.log(`Total interest applied: ${totalInterestApplied} coins to ${totalAccountsProcessed} accounts across ${guilds.size} guilds.`);
+    console.log(
+      `Total interest applied: ${totalInterestApplied} coins to ${totalAccountsProcessed} accounts across ${guilds.size} guilds.`
+    );
   } catch (error) {
     console.error('Failed to apply daily interest:', error);
   }
