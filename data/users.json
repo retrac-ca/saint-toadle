@@ -1,14 +1,14 @@
 {
   "172655374736818176": {
-    "balance": 0,
-    "totalEarned": 158,
+    "balance": -16,
+    "totalEarned": 173,
     "referrals": 3,
-    "lastEarn": 1760115076972,
+    "lastEarn": 1760120718185,
     "joinedAt": 1758904903843,
     "lastDaily": 0,
     "lastWeekly": 0,
     "inventory": {},
-    "bankBalance": 108,
+    "bankBalance": 111,
     "lastBankActivity": 1760115113708,
     "bio": "The Don",
     "links": {},
