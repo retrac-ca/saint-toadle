@@ -1,11 +1,4 @@
-/**
- * Command Handler - Command Loading and Processing System
- * 
- * Handles loading commands from the directory structure,
- * command execution, cooldowns, and permission checks.
- *
- * Supports nested subdirectories and multi-word aliases.
- */
+// handlers/commandHandler.js
 
 const { Collection } = require('discord.js');
 const fs = require('fs-extra');
@@ -24,12 +17,9 @@ class CommandHandler {
         try {
             const start = Date.now();
             this.commandCount = 0;
-
             await this.loadCommandsFromDirectory(this.commandsDir);
-
             client.commands = this.commands;
             client.cooldowns = this.cooldowns;
-
             const duration = Date.now() - start;
             logger.logPerformance('Command loading', duration, { commandCount: this.commandCount });
             logger.info(`📚 Loaded ${this.commandCount} commands in ${duration}ms`);
@@ -62,12 +52,10 @@ class CommandHandler {
         try {
             delete require.cache[require.resolve(filePath)];
             const command = require(filePath);
-
             if (!command.name || !command.execute) {
-                logger.warn(`⚠️ Command file ${path.basename(filePath)} missing required properties (name, execute)`);
+                logger.warn(`⚠️ Command file ${path.basename(filePath)} missing required properties`);
                 return;
             }
-
             command.filePath = filePath;
             command.category = this.getCategoryFromPath(filePath);
             this.commands.set(command.name, command);
@@ -84,58 +72,55 @@ class CommandHandler {
         return parts.length > 1 ? parts[0] : 'general';
     }
 
+    getCommandsByCategory(commands) {
+        const categories = {};
+        for (const cmd of commands.values()) {
+            const cat = cmd.category || 'general';
+            if (!categories[cat]) categories[cat] = [];
+            categories[cat].push(cmd);
+        }
+        return categories;
+    }
+
     async processCommand(client, message) {
         try {
             const start = Date.now();
             const prefix = message.usedPrefix || client.config.prefix;
             let content = message.content.slice(prefix.length).trim();
-
-            // Try two-word alias first
             let commandName, args;
             const split = content.split(/ +/);
-            if (split.length >= 2) {
-                const twoWord = `${split[0]} ${split[1]}`.toLowerCase();
+            const twoWord = split.length >= 2 ? `${split[0]} ${split[1]}`.toLowerCase() : null;
+            if (twoWord) {
                 const cmd2 = this.commands.find(cmd => cmd.name === twoWord || (cmd.aliases||[]).includes(twoWord));
                 if (cmd2) {
                     commandName = cmd2.name;
                     args = split.slice(2);
                 }
             }
-
-            // Fallback to single-word
             if (!commandName) {
                 const parts = content.split(/ +/);
                 commandName = parts.shift().toLowerCase();
                 args = parts;
             }
-
             const command = this.commands.get(commandName)
-                          || this.commands.find(cmd => (cmd.aliases||[]).includes(commandName));
-
+                || this.commands.find(cmd => (cmd.aliases||[]).includes(commandName));
             if (!command) {
                 logger.debug(`❓ Unknown command: ${commandName}`);
                 return;
             }
-
             logger.debug(`🎯 Processing command: ${commandName} from ${message.author.tag}`);
-
             if (!this.checkPermissions(command, message)) {
                 await message.channel.send('❌ You do not have permission to use this command.');
                 logger.logCommand(message, commandName, 'no_permission');
                 return;
             }
-
             if (!this.checkCooldown(command, message)) {
                 const timeLeft = this.getCooldownTimeLeft(command, message);
                 await message.channel.send(`⏱️ Please wait ${timeLeft} seconds before using this command.`);
                 logger.logCommand(message, commandName, 'cooldown');
                 return;
             }
-
-            // Execute command with proper parameter order
             await command.execute(message, args, client);
-
-            // Set cooldown
             if (command.cooldown > 0) {
                 const userId = message.author.id;
                 if (!this.cooldowns.has(command.name)) {
@@ -144,19 +129,15 @@ class CommandHandler {
                 this.cooldowns.get(command.name).set(userId, Date.now());
                 setTimeout(() => this.cooldowns.get(command.name).delete(userId), command.cooldown * 1000);
             }
-
             logger.logPerformance('Command', Date.now() - start, { command: commandName });
             logger.logCommand(message, commandName, 'success');
-
         } catch (error) {
             logger.logError('Command execution', error, {
                 message: message.content,
                 user: message.author.id,
                 guild: message.guild?.id
             });
-            try {
-                await message.channel.send('❌ An error occurred while executing the command.');
-            } catch {}
+            try { await message.channel.send('❌ An error occurred while executing the command.'); } catch {}
         }
     }
 
@@ -165,7 +146,7 @@ class CommandHandler {
         if (!message.guild) return false;
         for (const perm of command.permissions) {
             if (!message.member.permissions.has(perm)) {
-                logger.debug(`❌ Permission check failed: missing ${perm}`);
+                logger.debug(`❌ Missing permission: ${perm}`);
                 return false;
             }
         }
@@ -185,7 +166,7 @@ class CommandHandler {
         const userId = message.author.id;
         const timestamps = this.cooldowns.get(command.name);
         if (!timestamps?.has(userId)) return 0;
-        const expiration = timestamps.get(command.name).get(userId) + command.cooldown * 1000;
+        const expiration = timestamps.get(userId) + command.cooldown * 1000;
         return Math.ceil((expiration - Date.now()) / 1000) || 0;
     }
 }

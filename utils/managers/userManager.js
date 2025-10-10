@@ -52,15 +52,28 @@ class UserManager {
                 lastBankActivity: null,
                 joinedAt: Date.now(),
                 inventory: {},
-                badges: []
+                badges: [],
+                links: {},
+                bio: '',
+                dailyStreak: 0,
+                lastDaily: 0,
+                lastWeekly: 0,
+                guildId: null,
+                // Add theme fields
+                unlockedThemes: [],
+                selectedTheme: null
             };
             this.userData.set(userId, newUser);
             logger.debug(`👤 Created new user record: ${userId}`);
         }
         const user = this.userData.get(userId);
+        // Ensure legacy users get theme fields
         user.inventory = user.inventory || {};
         user.bankBalance = user.bankBalance || 0;
         user.badges = user.badges || [];
+        user.links = user.links || {};
+        user.unlockedThemes = Array.isArray(user.unlockedThemes) ? user.unlockedThemes : [];
+        if (!('selectedTheme' in user)) user.selectedTheme = null;
         return user;
     }
 
@@ -83,7 +96,7 @@ class UserManager {
     addToUserBalance(userId, amount) {
         const user = this.getUser(userId);
         const newBalance = user.balance + amount;
-        const newTotalEarned = user.totalEarned + Math.max(0, amount);
+        const newTotalEarned = (user.totalEarned || 0) + Math.max(0, amount);
         this.updateUser(userId, {
             balance: newBalance,
             totalEarned: newTotalEarned

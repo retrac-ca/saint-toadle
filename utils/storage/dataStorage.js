@@ -85,7 +85,7 @@ class DataStorage {
     /**
      * Save data to a specific file
      * @param {string} dataType - Type of data to save
-     * @param {Map|Set} dataStructure - Data structure to save
+     * @param {Map|Set|Object} dataStructure - Data structure to save
      * @returns {Promise<boolean>} Success status
      */
     async saveData(dataType, dataStructure) {
@@ -100,9 +100,12 @@ class DataStorage {
             if (dataType === 'claimed') {
                 // Convert Set to Array for JSON serialization
                 dataToSave = Array.from(dataStructure);
-            } else {
+            } else if (dataStructure instanceof Map) {
                 // Convert Map to Object for JSON serialization
                 dataToSave = Object.fromEntries(dataStructure);
+            } else {
+                // Already a plain object
+                dataToSave = dataStructure;
             }
 
             await fs.writeJson(filePath, dataToSave, { spaces: 2 });

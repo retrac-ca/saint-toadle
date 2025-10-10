@@ -1,1 +1,26 @@
-[]
+{
+  "dark-theme": {
+    "name": "Dark Profile Theme",
+    "description": "A sleek dark mode theme for your profile embeds.",
+    "emoji": "🌑",
+    "price": 500,
+    "type": "theme",
+    "color": "#2C2F33"
+  },
+  "neon-theme": {
+    "name": "Neon Profile Theme",
+    "description": "A vibrant neon style theme for your profile embeds.",
+    "emoji": "🌟",
+    "price": 750,
+    "type": "theme",
+    "color": "#39FF14"
+  },
+  "pastel-theme": {
+    "name": "Pastel Profile Theme",
+    "description": "A soft pastel palette theme for your profile embeds.",
+    "emoji": "🎨",
+    "price": 600,
+    "type": "theme",
+    "color": "#FFB3BA"
+  }
+}

@@ -1,3 +1,5 @@
+// utils/interestScheduler.js
+
 const dataManager = require('./dataManager');
 const configManager = require('./managers/configManager');
 
@@ -6,12 +8,11 @@ let botClient;
 function setupDailyInterestTask(client) {
   botClient = client;
   applyInterestDaily();
-  setInterval(applyInterestDaily, 86400000); // every 24 hours
+  setInterval(applyInterestDaily, 24 * 60 * 60 * 1000); // every 24 hours
 }
 
 async function applyInterestDaily() {
   try {
-    // Process each guild separately with their own interest rates
     const guilds = botClient.guilds.cache;
     let totalInterestApplied = 0;
     let totalAccountsProcessed = 0;
@@ -19,17 +20,20 @@ async function applyInterestDaily() {
     for (const guild of guilds.values()) {
       const guildId = guild.id;
       const guildConfig = configManager.getConfig(guildId);
-      const interestRate = guildConfig?.economy?.bank_interest_rate ?? 0.01;
 
-      // Accept old and new channel config naming for notification override
+      // Default to 2% if not set
+      const interestRate = guildConfig?.economy?.bank_interest_rate ?? 0.02;
+
+      // Notification channel config
       const notificationChannelId =
         guildConfig?.channels?.interest_notification ||
         guildConfig?.channels?.reminderChannelId ||
         guildConfig?.channels?.logs_channel;
 
-      // Apply interest for this guild only
+      // Apply interest and await result
       const { totalInterest, accountsWithInterest } =
-        dataManager.applyBankInterest(interestRate, guildId);
+        await dataManager.applyBankInterest(interestRate, guildId);
+
       totalInterestApplied += totalInterest;
       totalAccountsProcessed += accountsWithInterest;
 
@@ -37,26 +41,18 @@ async function applyInterestDaily() {
         `Applied interest: ${totalInterest} coins to ${accountsWithInterest} accounts in ${guild.name}.`
       );
 
-      // Send notification to configured channel if set
-      if (botClient && notificationChannelId && accountsWithInterest > 0) {
+      // Send notification to channel if configured
+      if (notificationChannelId) {
         try {
           const channel = await botClient.channels.fetch(notificationChannelId);
-          if (channel && typeof channel.send === 'function') {
-            await channel.send(
-              `💰 Daily bank interest applied: ${totalInterest} coins added to ${accountsWithInterest} users (${Math.round(
-                interestRate * 100
-              )}% rate).`
-            );
-          } else {
-            console.warn(
-              `⚠️ Fetched object for channel ${notificationChannelId} in ${guild.name} is not a text channel`
-            );
+          if (channel?.send) {
+            const message = accountsWithInterest > 0
+              ? `💰 Daily bank interest applied: ${totalInterest} coins added to ${accountsWithInterest} users (${(interestRate * 100).toFixed(0)}% rate).`
+              : `💤 Daily bank interest: No interest applied (${(interestRate * 100).toFixed(0)}% rate).`;
+            await channel.send(message);
           }
         } catch (sendError) {
-          console.warn(
-            `⚠️ Could not send interest notification in channel ${notificationChannelId} for guild ${guild.name}: ${sendError.code ||
-              sendError.message}`
-          );
+          console.warn(`⚠️ Could not send interest notification in ${guild.name}: ${sendError.message}`);
         }
       }
     }

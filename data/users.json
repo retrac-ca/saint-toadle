@@ -1,15 +1,15 @@
 {
   "172655374736818176": {
     "balance": 0,
-    "totalEarned": 0,
+    "totalEarned": 158,
     "referrals": 3,
-    "lastEarn": 0,
+    "lastEarn": 1760115076972,
     "joinedAt": 1758904903843,
     "lastDaily": 0,
     "lastWeekly": 0,
     "inventory": {},
-    "bankBalance": 0,
-    "lastBankActivity": 1759711616326,
+    "bankBalance": 108,
+    "lastBankActivity": 1760115113708,
     "bio": "The Don",
     "links": {},
     "badges": [
@@ -18,7 +18,12 @@
       "crime-master"
     ],
     "dailyStreak": 0,
-    "guildId": "826291664053731358"
+    "guildId": "826291664053731358",
+    "unlockedThemes": [
+      "dark-theme",
+      "neon-theme"
+    ],
+    "selectedTheme": "dark-theme"
   },
   "261330903731666945": {
     "balance": 0,
@@ -35,7 +40,9 @@
     "dailyStreak": 0,
     "guildId": "826291664053731358",
     "lastDaily": 0,
-    "lastWeekly": 0
+    "lastWeekly": 0,
+    "unlockedThemes": [],
+    "selectedTheme": null
   },
   "865579950857388063": {
     "balance": 0,
@@ -52,7 +59,9 @@
     "dailyStreak": 0,
     "guildId": "826291664053731358",
     "lastDaily": 0,
-    "lastWeekly": 0
+    "lastWeekly": 0,
+    "unlockedThemes": [],
+    "selectedTheme": null
   },
   "323521232400023553": {
     "balance": 0,
@@ -71,7 +80,9 @@
     "dailyStreak": 0,
     "guildId": "826291664053731358",
     "lastDaily": 0,
-    "lastWeekly": 0
+    "lastWeekly": 0,
+    "unlockedThemes": [],
+    "selectedTheme": null
   },
   "700990108735635498": {
     "balance": 4,
@@ -82,6 +93,8 @@
     "lastBankActivity": null,
     "joinedAt": 1759840283719,
     "inventory": {},
-    "badges": []
+    "badges": [],
+    "unlockedThemes": [],
+    "selectedTheme": null
   }
 }

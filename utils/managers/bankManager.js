@@ -1,3 +1,5 @@
+// utils/managers/bankManager.js
+
 const logger = require('../logger');
 
 class BankManager {
@@ -93,21 +95,22 @@ class BankManager {
      * @param {string|null} guildId - If provided, only apply to users in this guild
      * @returns {Object} Summary of interest applied
      */
-    applyInterest(interestRate = 0.01, guildId = null) {
+    async applyInterest(interestRate = 0.01, guildId = null) {
         let totalInterest = 0;
         let accountsWithInterest = 0;
 
         for (const [userId, user] of this.userData.entries()) {
-            // If guildId filter set, skip users not in that guild
+            // If guild filter set, skip other guilds
             if (guildId && user.guildId !== guildId) continue;
 
-            const bankBalance = user.bankBalance || 0;
-            if (bankBalance > 0) {
-                const interest = Math.floor(bankBalance * interestRate);
+            const balance = user.bankBalance || 0;
+            if (balance > 0) {
+                // Calculate interest using ceil to ensure at least 1 coin
+                const interest = Math.ceil(balance * interestRate);
                 if (interest > 0) {
-                    user.bankBalance = bankBalance + interest;
+                    user.bankBalance = balance + interest;
                     user.totalEarned = (user.totalEarned || 0) + interest;
-                    this.updateUser(userId, user);
+                    await this.updateUser(userId, user);
 
                     totalInterest += interest;
                     accountsWithInterest++;

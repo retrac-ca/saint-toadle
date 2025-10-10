@@ -4,17 +4,22 @@ const path = require('path');
 const storeFilePath = path.join(__dirname, '..', 'data', 'store.json');
 
 class StoreManager {
+  /**
+   * Ensure store.json exists and load its contents as an object.
+   * @returns {Object} mapping itemKey → itemDefinition
+   */
   static async loadStore() {
     try {
-      // Ensure data folder exists before accessing file
-      const dataDir = path.join(__dirname, '..', 'data');
+      const dataDir = path.dirname(storeFilePath);
       await fs.ensureDir(dataDir);
 
       const exists = await fs.pathExists(storeFilePath);
       if (!exists) {
-        await fs.writeJson(storeFilePath, []);
-        return [];
+        // Initialize with empty object
+        await fs.writeJson(storeFilePath, {}, { spaces: 2 });
+        return {};
       }
+
       const data = await fs.readJson(storeFilePath);
       return data;
     } catch (error) {
@@ -23,32 +28,62 @@ class StoreManager {
     }
   }
 
-  static async saveStore(storeItems) {
+  /**
+   * Save the full store object back to disk.
+   * @param {Object} storeDefs
+   */
+  static async saveStore(storeDefs) {
     try {
-      await fs.writeJson(storeFilePath, storeItems, { spaces: 2 });
+      await fs.writeJson(storeFilePath, storeDefs, { spaces: 2 });
     } catch (error) {
+      console.error('Error saving store data:', error);
       throw new Error('Failed to save store data');
     }
   }
 
-  static async addItem(item) {
-    const storeItems = await this.loadStore();
-    storeItems.push(item);
-    await this.saveStore(storeItems);
+  /**
+   * Get all store items for a guild context.
+   * Returns an array of { key, ...definition }.
+   */
+  static async getItems(guildId) {
+    const storeDefs = await this.loadStore();
+    return Object.entries(storeDefs).map(([key, def]) => ({ key, ...def }));
   }
 
-  static async removeItem(itemName) {
-    let storeItems = await this.loadStore();
-    const originalLength = storeItems.length;
-    storeItems = storeItems.filter(item => item.name.toLowerCase() !== itemName.toLowerCase());
-    if (storeItems.length === originalLength) {
+  /**
+   * Get a single store item by key.
+   * @param {string} guildId
+   * @param {string} key
+   * @returns {Object|null}
+   */
+  static async getItem(guildId, key) {
+    const storeDefs = await this.loadStore();
+    const def = storeDefs[key];
+    return def ? { key, ...def } : null;
+  }
+
+  /**
+   * Add or update an item in the store definitions.
+   * @param {string} key
+   * @param {Object} definition
+   */
+  static async addItem(key, definition) {
+    const storeDefs = await this.loadStore();
+    storeDefs[key] = definition;
+    await this.saveStore(storeDefs);
+  }
+
+  /**
+   * Remove an item from the store definitions by key.
+   * @param {string} key
+   */
+  static async removeItem(key) {
+    const storeDefs = await this.loadStore();
+    if (!storeDefs[key]) {
       throw new Error('Item not found');
     }
-    await this.saveStore(storeItems);
-  }
-
-  static async getItems() {
-    return await this.loadStore();
+    delete storeDefs[key];
+    await this.saveStore(storeDefs);
   }
 }
 

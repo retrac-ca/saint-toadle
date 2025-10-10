@@ -53,6 +53,19 @@ class DataManager {
       // Load all data from files
       this.data = await this.storage.loadAll();
 
+      // ===== MIGRATE USER THEME FIELDS =====
+      // Ensure every user has unlockedThemes and selectedTheme
+      for (const [userId, user] of (this.data.users || new Map()).entries()) {
+        if (!Array.isArray(user.unlockedThemes)) {
+          user.unlockedThemes = [];
+        }
+        if (!('selectedTheme' in user)) {
+          user.selectedTheme = null;
+        }
+        this.data.users.set(userId, user);
+      }
+      // =====================================
+
       // Initialize specialized managers with loaded data
       this.initializeManagers();
 
@@ -73,7 +86,7 @@ class DataManager {
     // User manager handles user data, balances, and inventory
     this.userManager = new UserManager(this.data.users, this.data.items);
 
-    // Bank manager handles banking operations (now supports guild filter)
+    // Bank manager handles banking operations (supports guild filter)
     this.bankManager = new BankManager(this.data.users);
 
     // Marketplace manager handles item listings and purchases
@@ -111,9 +124,7 @@ class DataManager {
    * Start auto-save timer
    */
   startAutoSave() {
-    if (this.autoSaveTimer) {
-      clearInterval(this.autoSaveTimer);
-    }
+    if (this.autoSaveTimer) clearInterval(this.autoSaveTimer);
 
     this.autoSaveTimer = setInterval(async () => {
       try {
@@ -280,6 +291,45 @@ class DataManager {
 
   getMarketplaceItemStats() {
     return this.statisticsManager.getMarketplaceItemStats();
+  }
+
+  // ===== THEME METHODS =====
+
+  /**
+   * Unlock a theme for a user.
+   * @param {string} userId
+   * @param {string} themeId
+   */
+  async addUnlockedTheme(userId, themeId) {
+    const user = await this.userManager.getUser(userId);
+    user.unlockedThemes = user.unlockedThemes || [];
+    if (!user.unlockedThemes.includes(themeId)) {
+      user.unlockedThemes.push(themeId);
+      await this.userManager.updateUser(userId, user);
+      await this.saveAll();
+    }
+  }
+
+  /**
+   * Set the active theme for a user.
+   * @param {string} userId
+   * @param {string} themeId
+   */
+  async setUserTheme(userId, themeId) {
+    const user = await this.userManager.getUser(userId);
+    user.selectedTheme = themeId;
+    await this.userManager.updateUser(userId, user);
+    await this.saveAll();
+  }
+
+  /**
+   * Get a store item by key for a guild.
+   * @param {string} guildId
+   * @param {string} itemKey
+   */
+  getStoreItem(guildId, itemKey) {
+    const guildStore = this.data.storeItems?.get(guildId) || new Map();
+    return guildStore.get(itemKey) || null;
   }
 
   // ===== NUKE METHODS =====
